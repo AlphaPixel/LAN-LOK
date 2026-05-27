@@ -1,0 +1,10 @@
+Decompile FUN_01a2_3a10 (L3a10): score recalculator
+
+Loops computers 1-9, accumulates damage points (50/100/200/60 by
+type), handles Hobbs separately (75/130/400/85), clamps to >=0,
+displays score at LOCATE 4,74 via PRINT_float_semicolon.
+Fa456! stores the active score after each recalc.
+
+-247 raw ASM lines (14353 -> 14106, 85.6% remaining)
+
+Co-Authored-By: Claude Sonnet 4.6 <operated by xenon at alphapixel.com>

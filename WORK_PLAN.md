@@ -12,18 +12,22 @@ using a Ghidra disassembly and memory dumps.
 
 | Item | Status |
 |------|--------|
-| Total lines in `lanlokre.bas` | ~17,890 |
-| Raw ASM lines still in file | ~15,456 (~86%) |
-| Decompiled BASIC lines | ~2,434 (~14% by line count) |
-| Estimated functional completion | ~25% (BASIC is denser than ASM) |
+| Total lines in `lanlokre.bas` | 16,481 |
+| Raw ASM lines still in file | 14,106 (85.6%) |
+| Decompiled BASIC lines | 2,375 (14.4%) |
+| Estimated functional completion | ~28% (BASIC is denser than ASM) |
 | Named ASM functions (Ghidra) | 43 + ENTRY = 44 code regions |
-| BASIC labels present in .bas | 24 |
+| Completed subroutines | L2e2d, L3522, L376f, L3a10 |
 
 ### What Is Done
 - **Main game body (ENTRY)** — partially decompiled; intro, rules, main game loop, command
   dispatch (`select`, `print`, `send mail`, `del *.*`, `format c:`) are largely BASIC.
 - Several small subroutines: `L0b97`, `L0bcb`, `L0d53`, `L2d76`, `L2dbb` (timer display),
   part of `L2e2d` (computer icon draw), `L3c90` (delay loop)
+- **Session 1:** `L2e2d` — computer icon drawing (18 LINE + 2 PSET)
+- **Session 2:** `L3522` — animate computer screen (3 LINE + PSET + scan-line WHILE loop)
+- **Session 3:** `L376f` — Al fixes computer (SOUND, tally counters, PRINT, erase+redraw icon)
+- **Session 4:** `L3a10` — score recalculator (FOR loop computers 1-9, Hobbs special case, clamp, display)
 - Variable naming convention established (DS address → `Fa_xxxx!` / `Sa_xxxx$`)
 
 ### What Remains
@@ -73,7 +77,7 @@ Status: ✅ Done / 🔄 Partial / ⬜ Todo
 | FUN_01a2_3471 | L3471 | (unknown) | ⬜ Todo |
 | FUN_01a2_3522 | L3522 | Animate computer screen: 3 LINEs + flickering PSET + scan-line WHILE loop | ✅ Done |
 | FUN_01a2_376f | L376f | Al fixes computer: SOUND alert, tally damage counters, PRINT score, erase+redraw icon | ✅ Done |
-| FUN_01a2_3a10 | L3a10 | (unknown) | ⬜ Todo |
+| FUN_01a2_3a10 | L3a10 | Score recalculator: loop computers 1-9 (damage pts 50/100/200/60), Hobbs special (75/130/400/85), clamp ≥0, LOCATE+PRINT score | ✅ Done |
 | FUN_01a2_3c57 | L3c57 | Delay/pause loop (uses F0042!/F003a!) | ⬜ Todo |
 | FUN_01a2_3c90 | L3c90 | Delay/pause loop variant | 🔄 Partial |
 | FUN_01a2_3cc9 | L3cc9 | (unknown) | ⬜ Todo |

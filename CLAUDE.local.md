@@ -19,6 +19,19 @@ Update this file at the end of each work session.
 - Established progress metrics (15,456 raw ASM lines remaining as baseline)
 - No decompilation work done in this session — planning only
 
+### 2026-05-27 — Decompilation Session 4: L3a10
+- Completed `FUN_01a2_3a10` = L3a10 subroutine (score recalculator + display)
+- FOR loop i=1 to 9: checks Fa246!(i,1) damage type, adds 50/100/200/60 to running total
+- Hobbs (computer 10) has higher point values: 75/130/400/85 (type 1-4)
+- Clamp to ≥0, then LOCATE 4,74 / PRINT 4 spaces (clear) / LOCATE again / PRINT Fa49a!;
+- Fa456! = Fa49a! (stores score in the "active score" variable)
+- **-247 ASM lines** (14,353 → 14,106)
+- Score point values from DS: type1=50 (constant), type2=100 ([0xb47a]), type3=200 ([0xb47e]), type4=60 ([0xb3da])
+- Hobbs from DS: type1=75 ([0xb482]), type2=130 ([0xb486]), type3=400 ([0xb3c8]), type4=85 ([0xb48a])
+- DS:0xb48e = "    " (4 spaces) used as score field clear string via PRINT_STR_SEMICOLON
+- Confirmed: `Fa456!` = active score variable (saved from Fa49a!)
+- Confirmed: score display is at column 74 (0x4a), row 4 — scan-line 29 (0x1d) = visible cursor
+
 ### 2026-05-27 — Decompilation Session 3: L376f
 - Completed `FUN_01a2_376f` = L376f subroutine (Al fixes a computer)
 - SOUND 800,2 then SOUND 1200,3 — rising two-tone alert beep
@@ -58,15 +71,15 @@ Update this file at the end of each work session.
 
 ## Current Work State
 
-**Next target:** `L3a10` (FUN_01a2_3a10) — unknown, called from L376f just before Al animation.
-At `lanlokre.bas` line 653, address 01a2:3a10.
-Run: `.\tools\extract_fn.ps1 -Address 3a10`
+**Next target:** `L3cc9` (FUN_01a2_3cc9) — unknown function.
+At `lanlokre.bas` line 695, address 01a2:3cc9.
+Run: `.\tools\extract_fn.ps1 -Address 3cc9`
 
-**Progress after session 3 (2026-05-27):**
-- Raw ASM lines in lanlokre.bas: 14,353 (85.7%)
-- Total lines: 16,756
-- Removed this session: 272 ASM lines (L376f complete)
-- Removed all sessions: 1,103 ASM lines total
+**Progress after session 4 (2026-05-27):**
+- Raw ASM lines in lanlokre.bas: 14,106 (85.6%)
+- Total lines: 16,481
+- Removed this session: 247 ASM lines (L3a10 complete)
+- Removed all sessions: 1,350 ASM lines total
 
 **Baseline (before any decompilation work):**
 - Raw ASM lines: 15,456 (86.1%)

@@ -6,6 +6,89 @@ and what changed in the repo.
 
 ---
 
+## Session 5 — 2026-05-27 (Decompilation: L3a10)
+
+### Target
+`FUN_01a2_3a10` (L3a10) — damage score recalculator and display.
+
+### What Was Decompiled
+
+**L3a10: Score Recalculator** (lanlokre.bas lines 642–663)
+
+```basic
+' Recalculate total damage score and display it
+L3a10:
+Fa49a! = 0
+FOR Fa492! = 1 TO 9
+    IF Fa246!(Fa492!, 1) = 1 THEN Fa49a! = Fa49a! + 50
+    IF Fa246!(Fa492!, 1) = 2 THEN Fa49a! = Fa49a! + 100
+    IF Fa246!(Fa492!, 1) = 3 THEN Fa49a! = Fa49a! + 200
+    IF Fa246!(Fa492!, 1) = 4 THEN Fa49a! = Fa49a! + 60
+NEXT Fa492!
+' Hobbs (computer 10) scores at higher values
+IF Fa246!(10, 1) = 1 THEN Fa49a! = Fa49a! + 75
+IF Fa246!(10, 1) = 2 THEN Fa49a! = Fa49a! + 130
+IF Fa246!(10, 1) = 3 THEN Fa49a! = Fa49a! + 400
+IF Fa246!(10, 1) = 4 THEN Fa49a! = Fa49a! + 85
+IF Fa49a! < 0 THEN Fa49a! = 0
+LOCATE 4, 74, 1, 29, 1
+COLOR 2, 13
+PRINT "    ";
+LOCATE 4, 74, 1, 29, 1
+PRINT Fa49a!;
+Fa456! = Fa49a!
+RETURN
+```
+
+### Technical Notes
+
+**Score system revealed:** L3a10 is the central score accumulator. It loops over all 9 regular
+computers, adding points per damage type:
+- Type 1 (unknown): 50 pts
+- Type 2 (unknown): 100 pts  
+- Type 3 (unknown): 200 pts
+- Type 4 (unknown): 60 pts
+
+Hobbs (computer 10, the admin/boss machine) uses higher multipliers from a separate block:
+- Type 1: 75 pts / Type 2: 130 pts / Type 3: 400 pts / Type 4: 85 pts
+
+Score is clamped to ≥ 0. Displayed at LOCATE 4,74 (column 74 = far right of screen, row 4 = status bar).
+The display first PRINTs 4 spaces to clear the old value, then re-LOCATEs and PRINTs the new value.
+
+**Array access pattern confirmed:** Fa246!(Fa492!, 1) uses column-major addressing:
+`SI = INT(Fa492!)*4 + 0x2c` (where 0x2c = 44 = j=1's offset from base 0xa246).
+For Fa492!=1: SI=48 → DS:0xa276. For Fa492!=9: SI=80 → DS:0xa296.
+Hobbs (i=10, j=1) directly accesses DS:0xa29a (hardcoded address, not through the loop).
+
+**New DS constants discovered:**
+| DS offset | Value | Role |
+|-----------|-------|------|
+| 0xb47a | 100.0 | Type 2 pts (regular computers) |
+| 0xb47e | 200.0 | Type 3 pts (regular computers) |
+| 0xb482 | 75.0  | Type 1 pts (Hobbs) |
+| 0xb486 | 130.0 | Type 2 pts (Hobbs) |
+| 0xb3c8 | 400.0 | Type 3 pts (Hobbs) |
+| 0xb48a | 85.0  | Type 4 pts (Hobbs) |
+| 0xb48e | str "    " (4 spaces, len=4) | Score field clear string |
+
+**FOR loop structure:** The compiled QuickBASIC FOR loop uses an unusual pattern in the ASM:
+initial value pushed on FPU, then JMP to the "increment+test" block (LAB_3b16). On first
+entry this stores the initial value and tests it; on subsequent entries it increments first,
+then tests. The loop body then runs if counter ≤ limit.
+
+### Files Changed
+- `lanlokre.bas` — L3a10 ASM block (298 lines) replaced with 23-line BASIC subroutine
+- `WORK_PLAN.md` — L3a10 marked ✅ Done, Current State table updated
+- `PROGRESS.md` — regenerated
+
+### Progress Delta
+- Before: 14,353 raw ASM lines (85.7%), 16,756 total lines
+- After:  14,106 raw ASM lines (85.6%), 16,481 total lines
+- Removed: **247 raw ASM lines** (298 raw replaced by 23 BASIC = net -275 total lines)
+- Next target: L3cc9 (FUN_01a2_3cc9) at lanlokre.bas line 695, address 01a2:3cc9
+
+---
+
 ## Session 2 — 2026-05-27 (Planning + Decompilation: L2e2d)
 
 ### Summary
