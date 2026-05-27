@@ -85,7 +85,7 @@ Status: ✅ Done / 🔄 Partial / ⬜ Todo
 | FUN_01a2_3d3b | L3d3b | Type-1 attack: repair-time, "LAN LOCKED" notify, flicker+shrink anim, icon marker | ✅ Done |
 | FUN_01a2_422d | L422d | Ghidra stub — part of L3d3b | ✅ Done |
 | FUN_01a2_4246 | L4246 | Ghidra stub — part of L3d3b (RET at 42d4) | ✅ Done |
-| FUN_01a2_42d5 | L42d5 | (unknown — print attack?) | ⬜ Todo |
+| FUN_01a2_42d5 | L42d5 | Printer JAM attack: icon draw, 5-frame paper feed anim, alarm cascade, 30-iter chaos | ✅ Done |
 | FUN_01a2_5018 | L5018 | (unknown — del *.* attack?) | ⬜ Todo |
 | FUN_01a2_50b2 | L50b2 | (unknown) | ⬜ Todo |
 | FUN_01a2_5124 | L5124 | (unknown — format attack?) | ⬜ Todo |

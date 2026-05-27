@@ -13,6 +13,26 @@ Update this file at the end of each work session.
 
 ## Session Log
 
+### 2026-05-27 — Decompilation Session 9: L42d5 (PRINTER JAM attack)
+- Completed `FUN_01a2_42d5` = L42d5 — the PRINTER JAM (damage type 4) attack routine
+- 1,647 raw ASM lines replaced with 81 lines of BASIC
+- **-1,514 ASM lines** (13,440 → 11,926)
+- Structure: preamble (repair-time/LOCATE/COLOR/PRINT/damage-tag), 7-LINE printer icon draw,
+  5 paper-feed animation frames with GOSUB L3cc9 pauses, 4 fixed FOR loops (Fa496! step 2,
+  y=3..9, 11..19, 21..30, 31..35), 1 variable-length WHILE loop (y=37..Fa4b6!−1),
+  descending SOUND cascade (700→100 step -50), 30-iteration chaos loop (random lines+SOUND 130,1)
+- Key discoveries:
+  - LINE push order confirmed as **color, style, mode** (not mode, color, style as docs said)
+    - style=0xffff = solid (all bits set); equivalent to omitting style in QB BASIC
+    - BF=2, B=1, plain=0 for mode; 0xffff style always present but never changes result
+  - Paper frame 3's fill starts 1 pixel HIGHER than its outline (y=22 vs y=23) — original code quirk
+  - QB string descriptors: 2-byte length + 2-byte near pointer; e.g. DS:0xb4ae → len=12, data@0xb4b2="PRINTER JAM "
+  - Fa246!(i,j) confirmed column-major: j×44 byte stride, i×4 element stride, OPTION BASE 0
+    - j=2 (repair time): offset 88=0x58 ✓ (ADD AX,0x58 in ASM)
+  - DS:0xb4ce=37, 0xb4a6=700, 0xb4d2=-50, 0xb412=31, 0xb466=17, 0xa610=18, 0xb45e=21
+- New variables: Fa4b6! (random paper height), Fa4ba! (Fa4b6!-1, loop limit), Fa482! (random y in chaos loop)
+- COLOR 2,9 = green on cyan for "PRINTER JAM " display (vs 2,14 = green on yellow for L3d3b)
+
 ### 2026-05-27 — Planning Session
 - Created `WORK_PLAN.md`, `CLAUDE.md`, `CLAUDE.local.md`, `tools/progress.ps1`, `tools/extract_fn.ps1`
 - Inventoried all 43 named ASM functions + ENTRY
@@ -102,14 +122,14 @@ Update this file at the end of each work session.
 
 ## Current Work State
 
-**Next target:** `L42d5` (FUN_01a2_42d5) — second attack type (PRINT attack?).
-At `lanlokre.bas` line 716, address 01a2:42d5.
-Run: `.\tools\extract_fn.ps1 -Address 42d5`
+**Next target:** `L5018` (FUN_01a2_5018) — third attack type (likely `del *.*` / disk wipe).
+At `lanlokre.bas` line 804, address 01a2:5018.
+Run: `.\tools\extract_fn.ps1 -Address 5018`
 
-**Progress after session 8 — L3d3b (2026-05-27):**
-- Raw ASM lines in lanlokre.bas: 13,440 (85.4% of 15,740)
-- Functions done: L2e2d, L3522, L376f, L3a10, L3c57, L3c90, L3cc9, L3d02, L3d3b/422d/4246
-- Lines removed this session: 614 (via L3d3b splice)
+**Progress after session 9 — L42d5 (2026-05-27):**
+- Raw ASM lines in lanlokre.bas: 11,926 (84.1% of 14,174)
+- Functions done: L2e2d, L3522, L376f, L3a10, L3c57, L3c90, L3cc9, L3d02, L3d3b/422d/4246, L42d5
+- Lines removed this session: 1,514 (via L42d5 splice)
 
 **Baseline (before any decompilation work):**
 - Raw ASM lines: 15,456 (86.1%)

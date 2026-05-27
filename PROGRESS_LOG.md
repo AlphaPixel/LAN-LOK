@@ -6,6 +6,80 @@ and what changed in the repo.
 
 ---
 
+## Session 9 — 2026-05-27 (L42d5: PRINTER JAM Attack Subroutine)
+
+### What was done
+Completed decompilation of `FUN_01a2_42d5` (L42d5), the PRINTER JAM attack routine. This is
+the type-4 damage attack, and it is the largest single function tackled so far — 1,647 raw ASM
+lines replaced by 81 lines of BASIC.
+
+### Function structure
+1. **Preamble** (identical pattern to all attacks): TIMER check/update for repair scheduling,
+   `Fa4ae! += 16 + RND()*15` (repair time 16–31 s), array store to Fa246!(target,2),
+   `LOCATE 4,68,1,INT(17+Fa472!),1`, `COLOR 2,9`, `PRINT "PRINTER JAM "`,
+   Fa246!(target,1)=4 (damage type), GOSUB L3a10, load Fa232!/Fa22e! from Fa246!(target,3/4).
+
+2. **Printer icon** (7 LINE calls): Cyan body fill, black housing frame, grey top cover,
+   black paper-feed slot, dark-grey slot-depth shadow, paper-guide outline, paper-output slot.
+   GOSUB L3cc9 (pause) after drawing.
+
+3. **Five paper-feed animation frames**, each as: two LINEs (black outline box + white fill),
+   GOSUB L3cc9, then a FOR loop drawing random-width horizontal black "text" lines on the paper:
+   - Frame 1: y=2..12, text lines y=3..9 step 2
+   - Frame 2: y=12..22, text lines y=11..19 step 2
+   - Frame 3: y=22..30 (fill starts 1px higher at y=22, outline at y=23 — original quirk),
+     text lines y=21..29 step 2
+   - Frame 4: y=30..36, text lines y=31..35 step 2
+   - Frame 5: y=36..Fa4b6! (random), text lines y=37..Fa4ba!=Fa4b6!-1 step 2 (WHILE loop)
+   Each paper advance is signalled by SOUND 200, 1.
+
+4. **Alarm cascade**: FOR Fa496! = 700 TO 100 STEP -50 → SOUND INT(Fa496!), 1 (13 notes).
+
+5. **Chaos loop**: FOR Fa496! = 1 TO 30 → two RND calls (Fa4b2!=RND*35+10 for x,
+   Fa482!=RND*20+3 for y), LINE at random (x,y), SOUND 130, 1. Creates chaotic "paper jam" visual.
+
+### Key technical discoveries
+
+**LINE push order finally confirmed as color → style → mode:**
+- The ASM always pushes: (1) color integer, (2) style integer (0xffff=solid), (3) mode (0/1/2)
+- 0xffff as style = all 16 bits set = solid line = equivalent to omitting style in QB BASIC
+- This unambiguously resolves the ambiguity that had persisted from session 2. The CLAUDE.md
+  note saying "left-to-right (first arg pushed first = color)" was correct — mode was listed last
+  in that note and is indeed the last (third) push, which is consistent.
+- Confirmed by cross-checking: push 3, push 0xffff, push 2 → LINE ..., 3, BF (cyan body fill)
+
+**QB string descriptor format (confirmed):**
+- At DS:0xb4ae: 2-byte length=12, 2-byte pointer=0xb4b2, data at 0xb4b2="PRINTER JAM "
+- Same pattern seen in earlier sessions; now explicitly verified with binary read.
+
+**Fa246!(i,j) column-major layout confirmed:**
+- j=2 (repair time): offset = j×44 = 88 = 0x58 (ADD AX, 0x58 in ASM) ✓
+- j=3 (Y pos): offset = 3×44 = 132 = 0x84 ✓
+- j=4 (X pos): offset = 4×44 = 176 = 0xb0 ✓
+
+**New DS constants resolved for L42d5:**
+- 0xb45e=21, 0xa614=8, 0xb4ca=29, 0xb466=17, 0xa610=18, 0xb412=31, 0xb4ce=37,
+  0xb4a6=700, 0xb4d2=-50, 0xb4be=-3, 0xb4c2=-2, 0xb4c6=22
+
+**New variables:**
+- Fa4b6! (DS:0xa4b6): random paper height for frame 5 (RND*23+37)
+- Fa4ba! (DS:0xa4ba): Fa4b6!-1, upper limit for frame-5 text-line loop
+- Fa482! (DS:0xa482): random Y position in the chaos loop (RND*20+3)
+
+### Files changed
+- `lanlokre.bas`: lines 714-2361 replaced (1648 raw ASM → 82 BASIC + 1 blank)
+- `WORK_PLAN.md`: L42d5 row updated to ✅ Done with description
+- `CLAUDE.local.md`: session 9 log entry added, Current Work State updated
+- `PROGRESS_LOG.md`: this entry
+
+### Progress metrics
+- Raw ASM lines before: 13,440 (85.4% of 15,740 total)
+- Raw ASM lines after: 11,926 (84.1% of 14,174 total)
+- Net ASM reduction this session: **-1,514 lines**
+- Next target: L5018 at lanlokre.bas line 804
+
+---
+
 ## Session 8 — 2026-05-27 (L3d3b: Type-1 Attack Subroutine)
 
 ### Objective
