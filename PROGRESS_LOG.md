@@ -6,6 +6,58 @@ and what changed in the repo.
 
 ---
 
+## Session 8 — 2026-05-27 (L3d3b: Type-1 Attack Subroutine)
+
+### Objective
+Decompile `FUN_01a2_3d3b` (+ Ghidra stubs 422d and 4246) = `L3d3b`, the player attack
+subroutine for damage-type 1.  Session resumed from summary mid-task; full ASM analysis
+was already complete.
+
+### Functions Completed
+- **L3d3b** (FUN_01a2_3d3b + FUN_01a2_422d + FUN_01a2_4246 — single BASIC subroutine)
+
+### What L3d3b Does
+Player attacks the selected computer (Fa472!). Actions in sequence:
+1. **Repair-time scheduling**: Fa4ae! = max(Fa4ae!, TIMER) + 12 + RND()*10 seconds.
+   Stores this as Fa246!(INT(Fa472!), 2) — the time when Al will fix the machine.
+2. **Status notification**: LOCATE row 4, col 68 (adjusted by target index); COLOR 2,14;
+   PRINT "LAN LOCKED " to the score/status line.
+3. **Damage tagging**: Fa246!(INT(Fa472!), 1) = 1 (type-1 attack).  Calls GOSUB L3a10
+   to recalculate and redisplay the total score.
+4. **Attack animation** (uses Fa232!/Fa22e! = target Y/X loaded from array col 3/4):
+   - 5-step fill flicker: 0→15→0→15→14 (black/white/black/white/yellow), each with
+     SOUND 200,3 and GOSUB L3cc9; the 5th step (yellow) has NO preceding SOUND.
+   - Shrinking box outline FOR loop (i=0 to 18): draws inward-collapsing black B-mode
+     rectangles with descending SOUND from 700 Hz to 160 Hz at 1 duration each.
+5. **Locked-state icon marker** (drawn in magenta, color 13):
+   - LINE box outline (+21..+30, +4..+14) in magenta
+   - LINE box outline (+21..+26, +8..+14) in black (partial black box inside)
+   - LINE vertical (+26, +14..+18) in magenta
+   - PSET (+26, +21) in magenta
+   - SOUND 100, 12 (low confirmation tone)
+   - RETURN
+
+### ASM Lines Removed
+- **-614 raw ASM lines** (14,054 → 13,440)
+- Stubs involved: FUN_01a2_3d3b (677 ASM lines), FUN_01a2_422d (22), FUN_01a2_4246 (72)
+  → replaced by 39 BASIC lines
+
+### Discoveries
+- **5th flicker LINE has no SOUND**: The pattern black/white/black/white/yellow alternates
+  SOUND+GOSUB for the first four, but the 5th (yellow) only has GOSUB L3cc9 — no SOUND.
+- **LINE calling convention confirmed** (left-to-right): push color, push style (-1=solid),
+  push mode (0=line, 1=B, 2=BF).  Different from LOCATE/COLOR which are right-to-left.
+- **DS:0xa624 = 3.0** (Fa624! is a constant — not written anywhere found, only read).
+- **COLOR 2, 14**: "LAN LOCKED" text is green-on-yellow.
+- **SOUND 100, 12**: 12 units of 100Hz tone marks the "locked" confirmation.
+
+### Progress Totals (cumulative)
+- Raw ASM lines: 13,440 (85.4% of 15,740 total lines)
+- Lines removed this session: 614
+- Lines removed all sessions: 2,016
+
+---
+
 ## Session 7 — 2026-05-27 (QB64 Delay Loop Conversion Pass)
 
 ### Objective

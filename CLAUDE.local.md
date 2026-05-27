@@ -19,6 +19,18 @@ Update this file at the end of each work session.
 - Established progress metrics (15,456 raw ASM lines remaining as baseline)
 - No decompilation work done in this session — planning only
 
+### 2026-05-27 — Decompilation Session 8: L3d3b (type-1 attack)
+- Completed `FUN_01a2_3d3b` + Ghidra stubs `FUN_01a2_422d` + `FUN_01a2_4246` = L3d3b
+- Player attack routine: repair-time scheduling, "LAN LOCKED" display, type-1 damage tag,
+  5-step fill-flicker animation (black/white×2/yellow), shrinking B-box loop, icon marker
+- Key discovery: 5th flicker LINE (yellow) has **no SOUND** — the 4 black/white LINEs do
+- Key discovery: LINE calling convention is **left-to-right** (color, style, mode)
+- STATUS indicator drawn as: magenta box, black inner box, magenta vertical line, magenta PSET
+- **-614 ASM lines** (14,054 → 13,440)
+- Confirmed: DS:0xa624 = 3.0 (Fa624! is read-only constant, SOUND 200,3)
+- Confirmed: COLOR 2,14 (green on yellow) for "LAN LOCKED" text
+- New variable: Fa4ae! = attack/repair time accumulator
+
 ### 2026-05-27 — Delay Loop Conversion Pass (all known loops)
 - Removed calibration block from ENTRY (TSTART!/TEND!/F0042!/F0046!/F004a! assignments)
 - Converted 4 delay subroutines + 1 random lockout to `_DELAY`:
@@ -90,14 +102,14 @@ Update this file at the end of each work session.
 
 ## Current Work State
 
-**Next target:** `L3d3b` (FUN_01a2_3d3b) — unknown function.
-At `lanlokre.bas` line 683, address 01a2:3d3b.
-Run: `.\tools\extract_fn.ps1 -Address 3d3b`
+**Next target:** `L42d5` (FUN_01a2_42d5) — second attack type (PRINT attack?).
+At `lanlokre.bas` line 716, address 01a2:42d5.
+Run: `.\tools\extract_fn.ps1 -Address 42d5`
 
-**Progress after delay conversion pass (2026-05-27):**
-- Raw ASM lines in lanlokre.bas: 14,054 (85.7%) — unchanged (conversions were in BASIC)
-- Total lines: 16,394 (trimmed 10 lines from shorter delay replacements)
-- Functions now done: 13 (L3c57 and L3c90 now fully complete)
+**Progress after session 8 — L3d3b (2026-05-27):**
+- Raw ASM lines in lanlokre.bas: 13,440 (85.4% of 15,740)
+- Functions done: L2e2d, L3522, L376f, L3a10, L3c57, L3c90, L3cc9, L3d02, L3d3b/422d/4246
+- Lines removed this session: 614 (via L3d3b splice)
 
 **Baseline (before any decompilation work):**
 - Raw ASM lines: 15,456 (86.1%)

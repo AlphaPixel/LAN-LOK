@@ -82,9 +82,9 @@ Status: ✅ Done / 🔄 Partial / ⬜ Todo
 | FUN_01a2_3c90 | L3c90 | Delay ≈ 0.263 s → `_DELAY 0.263` (same; shares RET) | ✅ Done |
 | FUN_01a2_3cc9 | L3cc9 | Delay ≈ 0.066 s → `_DELAY 0.066` (was F004a!=6601 iters; no RET, falls through) | ✅ Done |
 | FUN_01a2_3d02 | L3d02 | Delay ≈ 0.066 s → `_DELAY 0.066` (same; owns shared RET) | ✅ Done |
-| FUN_01a2_3d3b | L3d3b | (unknown — send mail attack?) | ⬜ Todo |
-| FUN_01a2_422d | L422d | (unknown) | ⬜ Todo |
-| FUN_01a2_4246 | L4246 | (unknown) | ⬜ Todo |
+| FUN_01a2_3d3b | L3d3b | Type-1 attack: repair-time, "LAN LOCKED" notify, flicker+shrink anim, icon marker | ✅ Done |
+| FUN_01a2_422d | L422d | Ghidra stub — part of L3d3b | ✅ Done |
+| FUN_01a2_4246 | L4246 | Ghidra stub — part of L3d3b (RET at 42d4) | ✅ Done |
 | FUN_01a2_42d5 | L42d5 | (unknown — print attack?) | ⬜ Todo |
 | FUN_01a2_5018 | L5018 | (unknown — del *.* attack?) | ⬜ Todo |
 | FUN_01a2_50b2 | L50b2 | (unknown) | ⬜ Todo |
