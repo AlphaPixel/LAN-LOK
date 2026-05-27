@@ -220,3 +220,112 @@ Co-Authored-By: Claude Sonnet 4.6 <operated by xenon at alphapixel.com>
 ---
 
 *Log entry written 2026-05-27. *
+
+---
+
+## Session 3 — 2026-05-27 (Decompilation: L3522 + housekeeping)
+
+### Target: FUN_01a2_3522 — Computer Screen Animator
+
+- **Location in lanlokre.bas**: lines 593–884 (292 raw ASM lines + 10-line Ghidra header)
+- **Location in lanlok.asm**: lines 6614–6905
+- **Called from**: FUN_01a2_19fa (game loop, twice) and FUN_01a2_bab9
+- **No Ghidra stub splits** — single clean `RET` at 01a2:376e
+
+#### What L3522 Does
+Called each time the game needs to animate a computer's screen. Uses the same `Fa22e!` / `Fa232!`
+coordinate variables as L2e2d but draws a live "active" overlay rather than the static icon.
+
+**Phase 1 — Redraw screen area:**
+```basic
+LINE (Fa22e!+6,Fa232!)-(Fa22e!+44,Fa232!+24),9,BF     ' Screen fill (cyan/9)
+LINE (Fa22e!+41,Fa232!+28)-(Fa22e!+44,Fa232!+31),0,BF  ' Clear indicator box
+LINE (Fa22e!+6,Fa232!)-(Fa22e!+44,Fa232!+24),0,B        ' Screen outline
+```
+
+**Phase 2 — Flickering status pixel:**
+```basic
+IF RND(1) > 0.5 THEN Fa236! = 8 ELSE Fa236! = 14
+PSET (Fa22e!+36,Fa232!+54),Fa236!   ' Activity indicator in drive area
+```
+50/50 chance of dark grey (8) vs yellow (14) each frame — simulates a blinking LED.
+
+**Phase 3 — Scan-line animation (WHILE loop):**
+```basic
+Fa48e! = Fa232! + 21     ' upper y bound
+Fa226! = Fa232! + 3      ' starting y (top of screen content area)
+WHILE Fa226! <= Fa48e!
+    Fa492! = RND(1) * 32 + 9
+    LINE (Fa22e!+9,Fa226!)-(Fa22e!+Fa492!,Fa226!),15
+    Fa226! = Fa226! + 2
+WEND
+```
+Draws 10 random-length white horizontal lines (min 9 px, max 41 px) at every other row
+across the screen area (y+3 to y+21 inclusive), simulating a CRT scan / data activity.
+
+#### ASM Loop Structure
+The WHILE loop uses a "init-then-check" pattern:
+- Initial value computed, pushed to FPU, then `JMP LAB_3751` (the check)
+- `LAB_3751`: FSTP stores to Fa226!, then tests Fa226! vs Fa48e!
+- `JA` exits when Fa226! > Fa48e!; otherwise continues to `LAB_36da` (body)
+- Body ends: FLD Fa226!+2, falls into LAB_3751 — this is the increment
+
+#### New Constants Resolved
+| DS offset | Value | Role |
+|-----------|-------|------|
+| `0xa618`  | 0.5   | RND() comparison threshold |
+| `0xa614`  | 8.0   | Dark-grey colour value |
+| `0xb45a`  | 14.0  | Yellow colour value |
+| `0xb45e`  | 21.0  | Scan-line loop y upper-bound offset |
+| `0xa624`  | 3.0   | Scan-line loop y start offset |
+| `0xb462`  | 32.0  | Scan-line random-length multiplier |
+| `0xa6b4`  | 2.0   | Scan-line y step |
+
+#### RND Pattern Confirmed
+```asm
+FLD  [threshold]        ; save threshold on FPU ST(0)
+CALLF RND               ; AX = ptr to RND() result (does not consume FPU stack)
+MOV  SI,AX
+FLD  float ptr [SI]     ; ST(0)=RND(), ST(1)=threshold
+CALLF FPCOMPARE_2stack  ; JA fires when ST(0) > ST(1), i.e. RND() > threshold
+```
+BASIC: `IF RND(1) > threshold THEN ... ELSE ...`
+
+#### Housekeeping Committed Alongside
+- **`.gitattributes`** added: all text files (`.bas`, `.asm`, `.ps1`, `.md`) enforced as LF.
+  Silences the "LF will be replaced by CRLF" git warnings permanently.
+
+#### Net Result
+| Metric | Before | After | Delta |
+|--------|--------|-------|-------|
+| Total lines | 17,326 | 17,053 | -273 |
+| Raw ASM lines | 14,882 | 14,625 | **-257** |
+| % done | 14.1% | 14.2% | +0.1% |
+| Functions done | 1 | 2 | +1 |
+
+#### QB64 Timing Issue (User-Reported)
+QB64 runs too fast for the original timer calibration loop (ENTRY function).
+The game hangs at startup. **When decompiling delay loops** (`L3c57`, `L3c90`, ENTRY),
+the `FOR/NEXT` busy-wait loops must be replaced with QB64's `_DELAY seconds` built-in.
+The calibration code (`F0042! = 0.9902 / (TEND! - TSTART!)`) will likely produce
+a near-zero or incorrect scale factor, breaking all timed events.
+Strategy: detect delay-loop functions and emit `_DELAY` instead of busy-wait.
+
+### Files Changed This Session
+| File | Change |
+|------|--------|
+| `lanlokre.bas` | L3522 ASM (292 lines + header) → 19 lines BASIC |
+| `WORK_PLAN.md` | L3522 marked ✅ Done |
+| `CLAUDE.local.md` | Session 2 log added, current state updated, QB64 timing noted |
+| `PROGRESS.md` | Regenerated |
+| `.gitattributes` | Created (LF enforcement) |
+| `PROGRESS_LOG.md` | This entry |
+
+### Next Target: L376f (FUN_01a2_376f)
+- **Role**: Unknown — possibly Al-fix notification (adjacent to L3522, called from similar context)
+- **Location**: lanlokre.bas line ~620, address 01a2:376f
+- **Extract command**: `.\tools\extract_fn.ps1 -Address 376f`
+
+---
+
+*Log entry written 2026-05-27.*

@@ -19,6 +19,16 @@ Update this file at the end of each work session.
 - Established progress metrics (15,456 raw ASM lines remaining as baseline)
 - No decompilation work done in this session — planning only
 
+### 2026-05-27 — Decompilation Session 2: L3522
+- Completed `FUN_01a2_3522` = L3522 subroutine (computer screen animator)
+- 3 LINE calls (screen fill cyan, clear indicator box, screen outline)
+- IF/THEN flickering status pixel: dark grey (8) or yellow (14) at 50/50 RND
+- WHILE loop: 10 scan-lines of random-length white (color 15) across screen rows y+3 to y+21, step 2
+- **-257 ASM lines** (14,882 → 14,625)
+- RND pattern confirmed: FLD x / CALLF RND / FLD [SI] → ST(0)=RND(), ST(1)=saved value
+- No stub splits; clean single RET at 01a2:376e
+- Added .gitattributes to enforce LF line endings repo-wide; silences CRLF warnings
+
 ### 2026-05-27 — Decompilation Session 1: L2e2d
 - Completed `FUN_01a2_2e2d` (+ split stubs 341d/3460/3469/3471) = L2e2d subroutine
 - Computer icon draw routine: 18 LINE calls + 2 PSET calls
@@ -33,13 +43,15 @@ Update this file at the end of each work session.
 
 ## Current Work State
 
-**Next target:** `L3522` (FUN_01a2_3522) — computer status display (called in game loop).
-Starts at `lanlokre.bas` line ~603, ASM at `lanlok.asm` line 6614.
+**Next target:** `L376f` (FUN_01a2_376f) — unknown, possibly Al-fix notification.
+At `lanlokre.bas` line 620, address 01a2:376f.
+Run: `.\tools\extract_fn.ps1 -Address 376f`
 
-**Progress after session 1 (2026-05-27):**
-- Raw ASM lines in lanlokre.bas: 14,882 (85.9%)
-- Total lines: 17,326
-- Removed: 574 ASM lines (L2e2d complete)
+**Progress after session 2 (2026-05-27):**
+- Raw ASM lines in lanlokre.bas: 14,625 (85.8%)
+- Total lines: 17,053
+- Removed this session: 257 ASM lines (L3522 complete)
+- Removed all sessions: 831 ASM lines total
 
 **Baseline (before any decompilation work):**
 - Raw ASM lines: 15,456 (86.1%)
