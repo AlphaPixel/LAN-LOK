@@ -9,6 +9,7 @@ Update this file at the end of each work session.
 
 - Do not commit without asking. When ready to commit, summarize all work and wait for the go-ahead.
 - After each substantiative session, record and appeand a thorough summary of the work done since the previous commit in the mini-sprint in PROGRESS_LOG.md
+- Something else to watch for - the plan referenced QB64. I tried running what I had in there, and it will hang - the timer calibration doesn't work since QB64 runs too fast. Claude might need to replace the delay loops with specific _delay instructions.
 
 ## Session Log
 

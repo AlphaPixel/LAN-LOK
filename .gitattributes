@@ -1,0 +1,24 @@
+# .gitattributes — LAN-LOK line ending policy
+#
+# All text files use LF in the repo (Unix canonical).
+# Windows tools (QB64-PE, PowerShell) accept LF just fine.
+# Binary assets are marked binary so git never touches them.
+
+# Default: treat unrecognised files as text, normalise to LF
+* text=auto eol=lf
+
+# Source files — always LF
+*.bas   text eol=lf
+*.asm   text eol=lf
+*.ps1   text eol=lf
+*.md    text eol=lf
+*.txt   text eol=lf
+
+# Git / editor config
+.gitattributes  text eol=lf
+.gitignore      text eol=lf
+
+# Binary data — never convert
+*.bin   binary
+*.exe   binary
+*.EXE   binary
