@@ -6,6 +6,76 @@ and what changed in the repo.
 
 ---
 
+## Session 10 — 2026-05-27 (L5018: ERASED Attack Subroutine)
+
+### What was done
+Completed the full decompilation of `FUN_01a2_5018` (plus its two Ghidra stubs `FUN_01a2_50b2` and
+`FUN_01a2_5124`), which together implement the type-2 ERASED disk-wipe attack. All three stubs form one
+continuous GOSUB subroutine starting at label `L5018` in `lanlokre.bas`.
+
+### Functions decompiled
+- **L5018** = `FUN_01a2_5018` + `FUN_01a2_50b2` + `FUN_01a2_5124` — ERASED (damage type 2)
+
+### Lines changed
+- **806 lines replaced** (raw ASM + Ghidra headers) with **42 lines** of BASIC
+- Net: **-719 raw ASM lines** (11,926 → 11,207)
+- File: 14,174 → 13,410 total lines
+
+### Structure of L5018
+1. **Timer/repair-time preamble** (identical pattern to L3d3b / L42d5):
+   `IF TIMER > Fa4ae! THEN Fa4ae! = TIMER`
+   `Fa4ae! = Fa4ae! + 30 + RND(1) * 15` (30–45 second repair window)
+2. **Array stores**: `Fa246!(INT(Fa472!), 2) = Fa4ae!` (repair time), `Fa246!(INT(Fa472!), 1) = 2` (damage type)
+3. **Score recalculate**: `GOSUB L3a10`
+4. **Header display**: `LOCATE 4, 68, 1, INT(17+Fa472!), 1` / `COLOR 2, 12` / `PRINT "ERASED     "`
+5. **Load screen coords**: `Fa232! = Fa246!(INT(Fa472!), 3)` / `Fa22e! = Fa246!(INT(Fa472!), 4)`
+6. **4-step flicker animation** using `GOSUB L3c90` (0.263 s per step — the longer delay):
+   - Steps 1, 3: `LINE (...), 0, BF` + `SOUND 200, 3` (black fill + sound)
+   - Steps 2, 4: `LINE (...), 15, BF` + `SOUND 200, 3` (white fill + sound)
+   - Flicker box: `(Fa22e!+6, Fa232!)-(Fa22e!+44, Fa232!+24)` — DS:0xb432=44, DS:0xb456=24
+7. **5th step**: `LINE (...), 0, BF` (final black fill, no delay), then `SOUND 100, 12` (~0.66 s)
+8. **Red X arm 1** (upper-left to lower-right diagonal band):
+   ```
+   LINE (Fa22e!, Fa232!-5)-(Fa22e!-5, Fa232!), 4         ' top-left notch
+   LINE (Fa22e!-5, Fa232!)-(Fa22e!+50, Fa232!+60), 4     ' main diagonal
+   LINE (Fa22e!+50, Fa232!+60)-(Fa22e!+55, Fa232!+55), 4 ' bottom tail
+   LINE (Fa22e!+55, Fa232!+55)-(Fa22e!, Fa232!-5), 4     ' close quadrilateral
+   PAINT (Fa22e!, Fa232!), 4, 4
+   ```
+9. **Red X arm 2** (upper-right to lower-left diagonal band):
+   ```
+   LINE (Fa22e!+50, Fa232!-5)-(Fa22e!+55, Fa232!), 4     ' top-right notch
+   LINE (Fa22e!+55, Fa232!)-(Fa22e!, Fa232!+60), 4       ' main diagonal
+   LINE (Fa22e!-5, Fa232!+55)-(Fa22e!+50, Fa232!-5), 4  ' close other arm
+   PAINT (Fa22e!, Fa232!+55), 4, 4
+   PAINT (Fa22e!+50, Fa232!), 4, 4
+   ```
+10. `RETURN`
+
+### Key discoveries
+- **Attack message**: DS:0xb4d6 → len=11, ptr=0xb4da, data=`"ERASED     "` (5 trailing spaces for field-width)
+- **COLOR 2, 12** = green text on light-red (color 12) background — unique per attack type:
+  - L3d3b (type 1): COLOR 2, 14 (green on yellow)
+  - L5018 (type 2): COLOR 2, 12 (green on light-red)
+  - L42d5 (type 4): COLOR 2, 9 (green on cyan)
+- **Flicker uses L3c90** (0.263 s), not L3cc9 (0.066 s) — type-2 is 4× slower than type-4's flicker
+  - L3d3b also used L3c90; L42d5 used L3cc9. The longer flash is more dramatic for "disk wipe"
+- **5th step has no delay** — the `SOUND 100, 12` (12 ticks ≈ 0.66 s) provides all pacing after final black fill
+- **3 PAINT calls** needed: the X shape has two separate enclosed regions that cannot share a seed point
+  - First arm seeded at `(Fa22e!, Fa232!)` — top-left corner of the icon
+  - Second arm seeded at `(Fa22e!, Fa232!+55)` and `(Fa22e!+50, Fa232!)` — two points in the other arm
+- **No status indicator PSET** unlike L3d3b — the red X completely replaces the icon visual
+- **Repair time 30–45 s**: longer than L42d5 (16–31 s), comparable to L3d3b
+- **DS lookup confirmed**: 0xb432=44, 0xb456=24 (flicker box), 0xa60c=15 (RND scale for repair time)
+- **GRAPHICS_setpt1_float argument order**: (x, y) with x the deeper stack argument (pushed first)
+
+### Files changed
+- `lanlokre.bas`: L5018 splice (lines 796–1601 replaced)
+- `WORK_PLAN.md`: L5018/50b2/5124 rows marked ✅ Done
+- `CLAUDE.local.md`: Session 10 log prepended; Current Work State updated to L56c4
+
+---
+
 ## Session 9 — 2026-05-27 (L42d5: PRINTER JAM Attack Subroutine)
 
 ### What was done

@@ -13,6 +13,27 @@ Update this file at the end of each work session.
 
 ## Session Log
 
+### 2026-05-27 — Decompilation Session 10: L5018 (ERASED attack)
+- Completed `FUN_01a2_5018` + stubs `FUN_01a2_50b2` + `FUN_01a2_5124` = L5018 — the ERASED (damage type 2) attack
+- 806 raw ASM lines replaced with 42 lines of BASIC
+- **-719 ASM lines** (11,926 → 11,207)
+- Structure: timer/repair-time preamble, LOCATE/COLOR 2,12/PRINT "ERASED     ", load screen coords,
+  4-step black/white flicker (L3c90 = 0.263 s each + SOUND 200,3), 5th final black fill + SOUND 100,12,
+  red X pattern (7 plain LINEs) + 3 PAINT fills to flood-fill both X arms
+- Key discoveries:
+  - Attack string at DS:0xb4d6: len=11, ptr=0xb4da, data="ERASED     " (5 trailing spaces)
+  - DS:0xb432=44, DS:0xb456=24 (flicker box pt2 offsets: Fa22e!+44, Fa232!+24)
+  - COLOR 2,12 = green on light-red for "ERASED" display (vs 2,9 for PRINTER JAM, 2,14 for LAN LOCKED)
+  - Flicker uses L3c90 (0.263 s = longer) not L3cc9 (0.066 s) — type-2 has slower dramatic flash
+  - 5th flicker step: black fill only, NO delay, but SOUND 100,12 blocks for ~0.66 s
+  - Red X shape: two overlapping diagonal quadrilaterals (4 lines each arm + PAINT)
+    - Arm 1 corners: (x, y-5)→(x-5, y)→(x+50, y+60)→(x+55, y+55)→back; PAINT at (x, y)
+    - Arm 2 corners: (x+50, y-5)→(x+55, y)→(x, y+60)+(x-5, y+55)→(x+50, y-5); PAINTs at (x, y+55) and (x+50, y)
+  - No status indicator dot (PSET) unlike L3d3b — the entire icon is covered by the red X
+  - Repair time: 30 + RND(1)*15 seconds (vs 16+RND*15 for L42d5, 30+RND*5 for L3d3b)
+  - 3 PAINT calls needed because X has two separate enclosed regions that don't share a seed point
+- GRAPHIC_setpt1/setpt2 argument order confirmed: (x, y) — x is the deeper stack arg
+
 ### 2026-05-27 — Decompilation Session 9: L42d5 (PRINTER JAM attack)
 - Completed `FUN_01a2_42d5` = L42d5 — the PRINTER JAM (damage type 4) attack routine
 - 1,647 raw ASM lines replaced with 81 lines of BASIC
@@ -122,14 +143,14 @@ Update this file at the end of each work session.
 
 ## Current Work State
 
-**Next target:** `L5018` (FUN_01a2_5018) — third attack type (likely `del *.*` / disk wipe).
-At `lanlokre.bas` line 804, address 01a2:5018.
-Run: `.\tools\extract_fn.ps1 -Address 5018`
+**Next target:** `L56c4` (FUN_01a2_56c4) — fourth attack type (SCREWED? FORMAT? type-3 damage?).
+At `lanlokre.bas` line 846, address 01a2:56c4.
+Run: `.\tools\extract_fn.ps1 -Address 56c4`
 
-**Progress after session 9 — L42d5 (2026-05-27):**
-- Raw ASM lines in lanlokre.bas: 11,926 (84.1% of 14,174)
-- Functions done: L2e2d, L3522, L376f, L3a10, L3c57, L3c90, L3cc9, L3d02, L3d3b/422d/4246, L42d5
-- Lines removed this session: 1,514 (via L42d5 splice)
+**Progress after session 10 — L5018 (2026-05-27):**
+- Raw ASM lines in lanlokre.bas: 11,207 (83.6% of 13,410)
+- Functions done: L2e2d, L3522, L376f, L3a10, L3c57, L3c90, L3cc9, L3d02, L3d3b/422d/4246, L42d5, L5018/50b2/5124
+- Lines removed this session: 719 (via L5018 splice)
 
 **Baseline (before any decompilation work):**
 - Raw ASM lines: 15,456 (86.1%)
