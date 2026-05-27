@@ -72,7 +72,7 @@ Status: ✅ Done / 🔄 Partial / ⬜ Todo
 | FUN_01a2_3469 | L3469 | (unknown) | ⬜ Todo |
 | FUN_01a2_3471 | L3471 | (unknown) | ⬜ Todo |
 | FUN_01a2_3522 | L3522 | Animate computer screen: 3 LINEs + flickering PSET + scan-line WHILE loop | ✅ Done |
-| FUN_01a2_376f | L376f | (unknown — Al fix notification?) | ⬜ Todo |
+| FUN_01a2_376f | L376f | Al fixes computer: SOUND alert, tally damage counters, PRINT score, erase+redraw icon | ✅ Done |
 | FUN_01a2_3a10 | L3a10 | (unknown) | ⬜ Todo |
 | FUN_01a2_3c57 | L3c57 | Delay/pause loop (uses F0042!/F003a!) | ⬜ Todo |
 | FUN_01a2_3c90 | L3c90 | Delay/pause loop variant | 🔄 Partial |

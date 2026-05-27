@@ -329,3 +329,107 @@ Strategy: detect delay-loop functions and emit `_DELAY` instead of busy-wait.
 ---
 
 *Log entry written 2026-05-27.*
+
+---
+
+## Session 4 — 2026-05-27 (Decompilation: L376f)
+
+### Target: FUN_01a2_376f — Al Fixes a Computer
+
+- **Location in lanlokre.bas**: lines 612–938 (327 raw ASM lines including Ghidra header)
+- **Location in lanlok.asm**: lines 6906–7232
+- **Called from**: FUN_01a2_19fa (game loop, 01a2:1fad) and FUN_01a2_bab9 (01a2:bbbc)
+- **No Ghidra stub splits** — single clean `RET` at 01a2:3a0f
+
+#### What L376f Does
+This is the handler invoked when Al (the automated repair character) finishes fixing a damaged
+computer on the network. Full sequence:
+
+1. **Rising two-tone alert** — `SOUND 800, 2` then `SOUND 1200, 3`
+2. **Read damage type** — `Fa496! = Fa246!(INT(Fa46a!), 1)` (column 1 of the computer array holds damage type 1–4, or 0=OK)
+3. **Tally counters** — Four independent IF tests increment `Fa43e!`, `Fa442!`, `Fa446!`, `Fa43a!` based on which damage type was just fixed
+4. **Score display** — `LOCATE 4, 44` then `COLOR 2, 13` then `PRINT` the matching tally
+5. **OK label** — `LOCATE 4, 68`, `COLOR 2, 2`, `PRINT "O.K.       "`
+6. **Clear damage** — `Fa246!(INT(Fa46a!), 1) = 0` marks the computer as repaired
+7. **Al animation** — `GOSUB L3a10` then `GOSUB L637d`
+8. **Erase + redraw icon** — `LINE (Fa22e!+(-5),Fa232!+(-5))-(Fa22e!+55,Fa232!+60),3,BF` (fill with dark cyan) then `GOSUB L2e2d` (redraw clean icon)
+
+#### Decompiled BASIC (final)
+```basic
+L376f:
+SOUND 800, 2
+SOUND 1200, 3
+Fa496! = Fa246!(INT(Fa46a!), 1)
+IF Fa496! = 1 THEN Fa43e! = Fa43e! + 1
+IF Fa496! = 2 THEN Fa442! = Fa442! + 1
+IF Fa496! = 3 THEN Fa446! = Fa446! + 1
+IF Fa496! = 4 THEN Fa43a! = Fa43a! + 1
+IF Fa496! < 4 THEN
+    LOCATE 4, 44, 1, INT(18 + Fa46a!), 1
+ELSE
+    LOCATE 4, 44, 1, 18, 1
+END IF
+COLOR 2, 13
+IF Fa496! = 1 THEN PRINT Fa43e!
+IF Fa496! = 2 THEN PRINT Fa442!
+IF Fa496! = 3 THEN PRINT Fa446!
+IF Fa496! = 4 THEN PRINT Fa43a!
+LOCATE 4, 68, 1, INT(17 + Fa46a!), 1
+COLOR 2, 2
+PRINT "O.K.       "
+Fa246!(INT(Fa46a!), 1) = 0
+GOSUB L3a10
+GOSUB L637d
+LINE (Fa22e!+(-5),Fa232!+(-5))-(Fa22e!+55,Fa232!+60),3,BF
+GOSUB L2e2d
+RETURN
+```
+
+#### Key Discoveries
+- **SOUND arg order confirmed**: `SOUND freq, dur` → freq pushed first (integer), dur pushed second (float).  `SOUND 800, 2` = 800 Hz for 2 ticks (~0.11 sec). `SOUND 1200, 3` = 1200 Hz for 3 ticks (~0.16 sec).
+- **JC confirmed**: `JC` fires when ST(0) < ST(1) (second-pushed < first-pushed). Used here for the `Fa496! < 4` branch.
+- **`PRINT_float_newline`** = QB `PRINT float_var` (with newline, no trailing semicolon).
+- **`PRINT_string_newline`** = QB `PRINT "string literal"`. DS address (0xb46a) is a QB string descriptor: 2-byte length + 2-byte data offset. String content = `"O.K.       "` (11 chars).
+- **`Fa246!(i, 1)` = damage type** (values 1–4; 0 = OK). Confirmed by this function reading then zeroing it.
+- **LOCATE 5-arg form**: `LOCATE row, col, cursor, scan_start, scan_stop`. Cursor scan-line values set above VGA max (18+) to effectively hide the cursor during PRINT.
+
+#### New Constants / Variables
+| Symbol | DS offset | Value | Role |
+|--------|-----------|-------|------|
+| `Fa46a!` | 0xa46a | (runtime) | Al's target computer index (1–10) |
+| `Fa496!` | 0xa496 | (runtime) | Damage type of target (1–4) |
+| `Fa43e!` | 0xa43e | 0 initial | Damage-type 1 fix counter |
+| `Fa442!` | 0xa442 | 0 initial | Damage-type 2 fix counter |
+| `Fa446!` | 0xa446 | 0 initial | Damage-type 3 fix counter |
+| `Fa43a!` | 0xa43a | 0 initial | Damage-type 4 fix counter |
+| `0xa610` | — | 18.0 | LOCATE cursor scan-line base (types 1–3) |
+| `0xb466` | — | 17.0 | LOCATE cursor scan-line base (OK label) |
+| `0xa64c` | — | 0.0  | Value stored to clear damage entry |
+| DS:0xb46a | — | "O.K.       " | Fixed-computer confirmation string |
+
+#### Net Result
+| Metric | Before | After | Delta |
+|--------|--------|-------|-------|
+| Total lines | 17,053 | 16,756 | -297 |
+| Raw ASM lines | 14,625 | 14,353 | **-272** |
+| % done | 14.2% | 14.3% | +0.1% |
+| Functions done | 2 | 3 | +1 |
+| All-session total removed | 831 | 1,103 | +272 |
+
+### Files Changed This Session
+| File | Change |
+|------|--------|
+| `lanlokre.bas` | L376f: 327 ASM lines → 30 lines BASIC |
+| `WORK_PLAN.md` | L376f marked ✅ Done |
+| `CLAUDE.local.md` | Session 3 log added, current state updated |
+| `PROGRESS.md` | Regenerated |
+| `PROGRESS_LOG.md` | This entry |
+
+### Next Target: L3a10 (FUN_01a2_3a10)
+- **Role**: Unknown — called immediately before Al animation (L637d) in L376f
+- **Location**: lanlokre.bas line ~653, address 01a2:3a10
+- **Extract command**: `.\tools\extract_fn.ps1 -Address 3a10`
+
+---
+
+*Log entry written 2026-05-27.*
