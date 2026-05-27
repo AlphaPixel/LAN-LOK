@@ -5,6 +5,11 @@ Update this file at the end of each work session.
 
 ---
 
+## Current practices
+
+- Do not commit without asking. When ready to commit, summarize all work and wait for the go-ahead.
+- After each substantiative session, record and appeand a thorough summary of the work done since the previous commit in the mini-sprint in PROGRESS_LOG.md
+
 ## Session Log
 
 ### 2026-05-27 — Planning Session
@@ -13,29 +18,40 @@ Update this file at the end of each work session.
 - Established progress metrics (15,456 raw ASM lines remaining as baseline)
 - No decompilation work done in this session — planning only
 
+### 2026-05-27 — Decompilation Session 1: L2e2d
+- Completed `FUN_01a2_2e2d` (+ split stubs 341d/3460/3469/3471) = L2e2d subroutine
+- Computer icon draw routine: 18 LINE calls + 2 PSET calls
+- **-574 ASM lines** (15,456 → 14,882)
+- Discovered: `SUB_0e71_1274` = PSET runtime function
+- Discovered: Ghidra splits single QB subroutines at runtime callback points
+- Fixed pre-existing bug: LINE 3 had +35 for pt1.x instead of correct -5
+- Added PSET to translation reference in WORK_PLAN.md
+- QB64-PE compile attempt launched (will fail on remaining ASM but verifies our BASIC syntax)
+
 ---
 
 ## Current Work State
 
-**Next target:** Complete `L2e2d` (FUN_01a2_2e2d) — the computer icon draw routine.
-It starts at `lanlokre.bas` around line 572 where BASIC transitions to raw ASM mid-subroutine.
-The ASM for this function is at `lanlok.asm` line 5702.
+**Next target:** `L3522` (FUN_01a2_3522) — computer status display (called in game loop).
+Starts at `lanlokre.bas` line ~603, ASM at `lanlok.asm` line 6614.
 
-**Baseline progress (2026-05-27):**
-- Raw ASM lines in lanlokre.bas: 15,456
-- Total lines: 17,890
-- BASIC completion estimate: ~25% (functional), ~14% (by line count)
+**Progress after session 1 (2026-05-27):**
+- Raw ASM lines in lanlokre.bas: 14,882 (85.9%)
+- Total lines: 17,326
+- Removed: 574 ASM lines (L2e2d complete)
+
+**Baseline (before any decompilation work):**
+- Raw ASM lines: 15,456 (86.1%)
+- Total lines: 17,946
 
 ---
 
-## Local Tool Paths (if installed)
+## Local Tool Paths
 
 ```
-QB64-PE:   C:\QB64\qb64pe.exe          (not yet installed)
-DOSBox:    C:\Program Files\DOSBox\...  (check archival\Lanlok.zip)
+QB64-PE:   "C:\Program Files\qb64pe"
+DOSBox:    "C:\Program Files (x86)\DOSBox-0.74-3\DOSBox.exe"
 ```
-
-Update these paths once tools are installed.
 
 ---
 
@@ -115,6 +131,37 @@ e8 XX XX        CALL FUN_01a2_YYYY
 c3              RET
 → BASIC: GOSUB LYYYY\nRETURN
 ```
+
+---
+
+## Key Discoveries (2026-05-27)
+
+### `SUB_0e71_1274` = PSET
+Called as: `setpt1(x,y)` then `CALLF SUB_0e71_1274(color)`.
+BASIC translation: `PSET (x,y), color`
+Verified by visual context (drawing pixel indicators on monitor icon).
+
+### Ghidra splits subroutines at QB runtime callback points
+`FUN_01a2_341d`, `FUN_01a2_3460`, `FUN_01a2_3469`, `FUN_01a2_3471` are all continuations
+of `FUN_01a2_2e2d`. Ghidra splits because the QB runtime calls back into user code at those
+addresses. In the .bas file they appear as consecutive raw-ASM blocks, all belonging to the
+same GOSUB. Translate as one continuous subroutine body, ending with the first `RET`.
+
+### L2e2d had a pre-existing bug
+BASIC line for LINE 3 said `Fa22e!+35` for pt1.x, but ASM uses constant `[0xb3f2]=-5`.
+Correct: `LINE (Fa22e!+(-5),Fa232!+41)-(Fa22e!+55,Fa232!+60),0,B`.
+Fixed in 2026-05-27 session.
+
+### Constant table for computer icon drawing (b3xx range)
+See WORK_PLAN.md for the full constant lookup table. Key:
+- `0xa550`=1, `0xa654`=50, `0xa674`=4, `0xa67c`=12, `0xa60c`=15, `0xaf94`=9
+- `0xaf70`=16, `0xa6b0`=40, `0xaf80`=6
+- `0xb3da`=60, `0xb3e6`=-4, `0xb3ea`=49, `0xb3ee`=34, `0xb3f2`=-5, `0xb3f6`=35
+- `0xb3fa`=41, `0xb3fe`=55, `0xb402`=42, `0xb406`=54, `0xb40a`=59, `0xb40e`=28
+- `0xb412`=31, `0xb416`=-1, `0xb41a`=47, `0xb41e`=51, `0xb422`=36, `0xb426`=48
+- `0xb42a`=45, `0xb42e`=20, `0xb432`=44, `0xb436`=57, `0xb43a`=19, `0xb43e`=43
+- `0xb442`=58, `0xb446`=23, `0xb44a`=39, `0xb44e`=26, `0xb452`=52, `0xb456`=24
+- `0xb036`=30
 
 ---
 

@@ -66,7 +66,7 @@ Status: ✅ Done / 🔄 Partial / ⬜ Todo
 | FUN_01a2_19fa | L19fa | (unknown — Al repair loop?) | ⬜ Todo |
 | FUN_01a2_2d76 | L2d76 | Reset selection | ✅ Done |
 | FUN_01a2_2dbb | L2dbb | Update displayed timer | ✅ Done |
-| FUN_01a2_2e2d | L2e2d | Display computer icon | 🔄 Partial |
+| FUN_01a2_2e2d + 341d + 3460 + 3469 + 3471 | L2e2d | Display computer icon (18 LINEs + 2 PSETs) | ✅ Done |
 | FUN_01a2_341d | L341d | (unknown) | ⬜ Todo |
 | FUN_01a2_3460 | L3460 | (unknown) | ⬜ Todo |
 | FUN_01a2_3469 | L3469 | (unknown) | ⬜ Todo |
@@ -191,8 +191,9 @@ Arguments are pushed with `MOV AX, value / PUSH AX` pairs, then `CALLF` the runt
 | `GOSUB_return` / `SET_STRING` | string assignment | |
 | `FPCOMPARE_2stack` | FP comparison, sets flags | |
 | `Implicit_FP_to_INT` | convert float→int | result in AX |
-| `GRAPHICS_setpt1_float` / `GRAPHICS_SETPT1` | sets LINE start point | |
+| `GRAPHICS_setpt1_float` / `GRAPHICS_SETPT1` | sets LINE/PSET/PAINT start point | |
 | `GRAPHICS_setpt2_float` / `GRAPHICS_SetPT2` | sets LINE end point | |
+| `SUB_0e71_1274` | `PSET (x,y),color` | setpt1 first, then CALLF with color arg |
 
 ### Variable Naming Convention
 
