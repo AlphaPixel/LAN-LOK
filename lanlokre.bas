@@ -1,12 +1,8 @@
 DIM Fa246!(10,5)
 
-' Calibrate timer
-TSTART!=TIMER
-FOR F003a!=1 to 37700:NEXT F003a!
-TEND!=TIMER
-F0042! = .9902 / (TEND!-TSTART!)
-F0046! = 10000 * F0042!
-F004a! = 2500 * F0042!
+' Calibration block removed — QB64 runs too fast for the original timing loop.
+' Original: 37700 iterations measured with TIMER to scale F0042!/F0046!/F004a!.
+' All delay loops are now _DELAY with pre-computed wall-clock durations (see CLAUDE.md).
 
 ' Play first intro
 CLS 0
@@ -446,9 +442,7 @@ GOSUB L3c57:GOSUB L3c57:GOSUB L3c57
 COLOR 10
 LOCATE 27,6
 PRINT "YOUR COMPUTER IS TEMPORARILY LOCKED"
-Fa47a! = (RND * 500000#+500000#)*F0042!
-Fa47e!=Fa47a!
-FOR Fa482! = 1 to F847e!:NEXT Fa482!
+_DELAY (RND(1) + 1) * 13.132  ' lockout 13–26 s (orig: (RND*500000+500000)*F0042! iters)
 LOCATE 27,6
 PRINT "                                     "
 SOUND 800,2
@@ -663,102 +657,21 @@ PRINT Fa49a!;
 Fa456! = Fa49a!
 RETURN
 
+' Delay ≈ 0.263 s per call — converted from calibrated FOR loop (F0046!=26405 iters on orig. hw)
 L3c57:
-Fa49e!=F0046!
-FOR F003a!=1 to Fa49e!:NEXT F003a!
+_DELAY 0.263
+' Same duration — falls through from L3c57 or called directly as L3c90
 L3c90:
-Fa4a2!=F0046!
-FOR F003a!=1 to Fa4a2:NEXT F003a!
+_DELAY 0.263
 RETURN
 
-                             **************************************************************
-                             *                          FUNCTION                          *
-                             **************************************************************
-                             undefined FUN_01a2_3cc9()
-                               assume DS = 0x1997
-             undefined         <UNASSIGNED>   <RETURN>
-                             FUN_01a2_3cc9                                   XREF[15]:    FUN_01a2_3d3b:01a2:3eb7(c), 
-                                                                                          FUN_01a2_3d3b:01a2:3f2a(c), 
-                                                                                          FUN_01a2_3d3b:01a2:3f9c(c), 
-                                                                                          FUN_01a2_3d3b:01a2:400f(c), 
-                                                                                          FUN_01a2_3d3b:01a2:4071(c), 
-                                                                                          FUN_01a2_42d5:01a2:46b3(c), 
-                                                                                          FUN_01a2_42d5:01a2:478b(c), 
-                                                                                          FUN_01a2_42d5:01a2:4927(c), 
-                                                                                          FUN_01a2_42d5:01a2:4ac3(c), 
-                                                                                          FUN_01a2_42d5:01a2:4c5f(c), 
-                                                                                          FUN_01a2_42d5:01a2:4e1b(c), 
-                                                                                          FUN_01a2_56c4:01a2:57d4(c), 
-                                                                                          FUN_01a2_56c4:01a2:5839(c), 
-                                                                                          FUN_01a2_56c4:01a2:5892(c), 
-                                                                                          FUN_01a2_56c4:01a2:58eb(c)  
-       01a2:3cc9 90              NOP
-       01a2:3cca d9 06 4a 00     FLD        float ptr [0x4a]
-       01a2:3cce 90              NOP
-       01a2:3ccf d9 1e a6 a4     FSTP       float ptr [0xa4a6]
-       01a2:3cd3 90              NOP
-       01a2:3cd4 9b              WAIT
-       01a2:3cd5 90              NOP
-       01a2:3cd6 d9 06 50 a5     FLD        float ptr { 1.0 }
-       01a2:3cda e9 0b 00        JMP        LAB_01a2_3ce8
-       01a2:3cdd 90              ??         90h
-                             LAB_01a2_3cde                                   XREF[1]:     01a2:3d00(j)  
-       01a2:3cde 90              NOP
-       01a2:3cdf d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:3ce3 90              NOP
-       01a2:3ce4 d8 06 50 a5     FADD       float ptr { 1.0 }
-                             LAB_01a2_3ce8                                   XREF[1]:     01a2:3cda(j)  
-       01a2:3ce8 90              NOP
-       01a2:3ce9 d9 1e 3a 00     FSTP       float ptr [0x3a]
-       01a2:3ced 90              NOP
-       01a2:3cee 9b              WAIT
-       01a2:3cef 90              NOP
-       01a2:3cf0 d9 06 a6 a4     FLD        float ptr [0xa4a6]
-       01a2:3cf4 90              NOP
-       01a2:3cf5 d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:3cf9 90              NOP
-       01a2:3cfa 9b              WAIT
-       01a2:3cfb 9a 1d 04        CALLF      FPCOMPARE_2stack                                 undefined FPCOMPARE_2stack()
-                 75 0d
-       01a2:3d00 76 dc           JBE        LAB_01a2_3cde
-                             **************************************************************
-                             *                          FUNCTION                          *
-                             **************************************************************
-                             undefined __cdecl16near FUN_01a2_3d02()
-                               assume DS = 0x1997
-             undefined         <UNASSIGNED>   <RETURN>
-                             FUN_01a2_3d02                                   XREF[3]:     FUN_01a2_0d53:01a2:0d53(c), 
-                                                                                          FUN_01a2_0d53:01a2:0d81(c), 
-                                                                                          FUN_01a2_56c4:01a2:5a5f(c)  
-       01a2:3d02 90              NOP
-       01a2:3d03 d9 06 4a 00     FLD        float ptr [0x4a]
-       01a2:3d07 90              NOP
-       01a2:3d08 d9 1e aa a4     FSTP       float ptr [0xa4aa]
-       01a2:3d0c 90              NOP
-       01a2:3d0d 9b              WAIT
-       01a2:3d0e 90              NOP
-       01a2:3d0f d9 06 50 a5     FLD        float ptr { 1.0 }
-       01a2:3d13 e9 0a 00        JMP        LAB_01a2_3d20
-                             LAB_01a2_3d16                                   XREF[1]:     01a2:3d38(j)  
-       01a2:3d16 90              NOP
-       01a2:3d17 d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:3d1b 90              NOP
-       01a2:3d1c d8 06 50 a5     FADD       float ptr { 1.0 }
-                             LAB_01a2_3d20                                   XREF[1]:     01a2:3d13(j)  
-       01a2:3d20 90              NOP
-       01a2:3d21 d9 1e 3a 00     FSTP       float ptr [0x3a]
-       01a2:3d25 90              NOP
-       01a2:3d26 9b              WAIT
-       01a2:3d27 90              NOP
-       01a2:3d28 d9 06 aa a4     FLD        float ptr [0xa4aa]
-       01a2:3d2c 90              NOP
-       01a2:3d2d d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:3d31 90              NOP
-       01a2:3d32 9b              WAIT
-       01a2:3d33 9a 1d 04        CALLF      FPCOMPARE_2stack                                 undefined FPCOMPARE_2stack()
-                 75 0d
-       01a2:3d38 76 dc           JBE        LAB_01a2_3d16
-       01a2:3d3a c3              RET
+' Delay ≈ 0.066 s per call — converted from calibrated FOR loop (F004a!=6601 iters on orig. hw)
+L3cc9:
+_DELAY 0.066
+' Same duration — falls through from L3cc9 or called directly as L3d02
+L3d02:
+_DELAY 0.066
+RETURN
                              **************************************************************
                              *                          FUNCTION                          *
                              **************************************************************

@@ -6,6 +6,136 @@ and what changed in the repo.
 
 ---
 
+## Session 7 — 2026-05-27 (QB64 Delay Loop Conversion Pass)
+
+### Objective
+Convert all calibrated FOR-loop delays to wall-clock `_DELAY` equivalents, and codify
+the conversion policy as a mandatory directive in CLAUDE.md.
+
+### Why This Was Needed
+QuickBASIC's timing system: startup calibration measures CPU speed (37700-iteration loop via
+TIMER), then all delays are `FOR F003a! = 1 TO (calibrated_limit) : NEXT F003a!`.
+On a 1991 Palmer Station machine: 37700 iters took ~0.375 s → 100,533 iters/sec.
+QB64 on modern hardware: calibration loop runs in microseconds → limits become astronomical
+→ game hangs on the first pause.
+
+### Changes Made
+
+**1. Calibration block removed (ENTRY, line 2):**
+```basic
+' Removed:
+TSTART!=TIMER
+FOR F003a!=1 to 37700:NEXT F003a!
+TEND!=TIMER
+F0042! = .9902 / (TEND!-TSTART!)
+F0046! = 10000 * F0042!
+F004a! = 2500 * F0042!
+' Replaced with comment explaining the removal.
+```
+
+**2. Random computer-lockout delay converted (ENTRY ~line 449):**
+```basic
+' Was: Fa47a! = (RND*500000+500000)*F0042! / Fa47e!=Fa47a! / FOR Fa482!=1 TO Fa47e!...
+' Now:
+_DELAY (RND(1) + 1) * 13.132  ' lockout 13–26 s
+```
+Formula: (RND+1) × 500000 × 0.9902 / 37700 = (RND+1) × 13.132 s
+
+**3. L3c57 / L3c90 converted:**
+```basic
+L3c57: _DELAY 0.263   ' was F0046!=26405 iters = 26405/100533 = 0.263 s
+L3c90: _DELAY 0.263
+RETURN
+```
+
+**4. L3cc9 / L3d02 converted:**
+```basic
+L3cc9: _DELAY 0.066   ' was F004a!=6601 iters = 6601/100533 = 0.066 s
+L3d02: _DELAY 0.066
+RETURN
+```
+
+### Directive Added to CLAUDE.md
+New mandatory section "⚠️ MANDATORY: Delay Loop Conversion Policy" with:
+- ASM signature for recognising calibrated delay loops
+- Conversion formula and lookup table for all known limit variables
+- Mandatory replacement pattern (never emit a calibrated FOR loop literally)
+- List of already-converted loops (do not re-convert)
+
+### Timing Derivation
+| Variable | DS value | Duration | Derivation |
+|----------|----------|----------|------------|
+| `F0042!` | 2.6405 | — | speed factor; cancels algebraically |
+| `F0046!` | 26405 | 0.263 s | 26405 / 100533 |
+| `F004a!` |  6601 | 0.066 s |  6601 / 100533 |
+| lockout  | varies | 13–26 s | (RND+1)×500000×0.9902/37700 |
+
+### Files Changed
+- `lanlokre.bas` — calibration block, 4 delay loops, 1 random-lockout delay converted
+- `CLAUDE.md` — mandatory delay-loop conversion directive added
+- `WORK_PLAN.md` — L3c57/L3c90 marked ✅ Done with conversion notes
+- `PROGRESS.md` — regenerated
+
+### Progress Delta
+- Total lines: 16,404 → 16,394 (−10, replacements are shorter)
+- Raw ASM lines unchanged at 14,054 (conversions were all in existing BASIC sections)
+- Functions: done=13 (L3c57 and L3c90 now counted as complete)
+- Next target: L3d3b (FUN_01a2_3d3b) at lanlokre.bas line 683, address 01a2:3d3b
+
+---
+
+## Session 6 — 2026-05-27 (Decompilation: L3cc9 + L3d02)
+
+### Target
+`FUN_01a2_3cc9` (L3cc9) and `FUN_01a2_3d02` (L3d02) — a pair of calibrated delay loops.
+
+### What Was Decompiled
+
+**L3cc9 + L3d02: Paired delay loops** (lanlokre.bas lines 673–683)
+
+```basic
+' Delay loop: F003a! from 1 to F004a! (~6601 calibrated iters); falls through to L3d02
+L3cc9:
+Fa4a6! = F004a!
+FOR F003a! = 1 TO Fa4a6!
+NEXT F003a!
+' Second delay loop (same limit, stored in Fa4aa!); shared RET covers both fall-through calls
+L3d02:
+Fa4aa! = F004a!
+FOR F003a! = 1 TO Fa4aa!
+NEXT F003a!
+RETURN
+```
+
+### Technical Notes
+
+**Fall-through pattern:** L3cc9 has NO RET — its JBE loop exits and execution falls straight
+into L3d02 at address 3d02. L3d02's RET at 3d3a serves both. In BASIC: both labels share
+the same RETURN. When GOSUB L3cc9 is called, both loops run (total ~13202 iterations).
+When GOSUB L3d02 is called directly, only the second loop runs (~6601 iterations).
+
+**F004a! = 6601.3:** DS:0x4a holds ~6601 (a calibrated value = ~2500 × F0042! speed factor).
+Compare: F0046! ≈ 26405 = 10000 × F0042! (used in L3c57/L3c90, 4× longer delay).
+
+**15 callers of L3cc9** (from L3d3b × 5, L42d5 × 6, L56c4 × 3) confirms this is a heavily
+used short delay. 3 callers of L3d02 independently (from L0d53 × 2, L56c4 × 1).
+
+**QB64 note:** Like L3c57/L3c90, these FOR loops will spin too fast in QB64. Should be
+converted to `_DELAY` equivalents in a QB64 compatibility pass.
+
+### Files Changed
+- `lanlokre.bas` — L3cc9+L3d02 ASM (88 lines) replaced with 11-line BASIC pair
+- `WORK_PLAN.md` — L3cc9 and L3d02 marked ✅ Done
+- `PROGRESS.md` — regenerated
+
+### Progress Delta
+- Before: 14,106 raw ASM lines (85.6%), 16,481 total
+- After:  14,054 raw ASM lines (85.7%), 16,404 total
+- Removed: **52 raw ASM lines** (88 raw replaced by 11 BASIC = net -77 total lines)
+- Next target: L3d3b (FUN_01a2_3d3b) at lanlokre.bas line 693, address 01a2:3d3b
+
+---
+
 ## Session 5 — 2026-05-27 (Decompilation: L3a10)
 
 ### Target

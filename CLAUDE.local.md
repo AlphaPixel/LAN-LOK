@@ -19,6 +19,25 @@ Update this file at the end of each work session.
 - Established progress metrics (15,456 raw ASM lines remaining as baseline)
 - No decompilation work done in this session — planning only
 
+### 2026-05-27 — Delay Loop Conversion Pass (all known loops)
+- Removed calibration block from ENTRY (TSTART!/TEND!/F0042!/F0046!/F004a! assignments)
+- Converted 4 delay subroutines + 1 random lockout to `_DELAY`:
+  - L3c57 / L3c90: `_DELAY 0.263` (was F0046!=26405 iters)
+  - L3cc9 / L3d02: `_DELAY 0.066` (was F004a!=6601 iters)
+  - ENTRY random lockout: `_DELAY (RND(1)+1)*13.132` (was (RND*500000+500000)*F0042! iters, 13–26 s)
+- Added mandatory delay conversion policy to CLAUDE.md (⚠️ section)
+- Derivation: 37700 iters / 0.375 s = 100,533 iters/sec on original Palmer Station machine
+- F0042! cancels algebraically in all formulas — wall-clock seconds need no runtime calibration
+
+### 2026-05-27 — Decompilation Session 5: L3cc9 + L3d02
+- Completed `FUN_01a2_3cc9` + `FUN_01a2_3d02` — paired delay loops
+- L3cc9 has no RET; falls through into L3d02 which owns the shared RET
+- Both loop F003a! from 1 to F004a! (~6601 = 2500 × F0042!); L3cc9 uses Fa4a6! temp, L3d02 uses Fa4aa!
+- L3cc9 has 15 callers (L3d3b, L42d5, L56c4); L3d02 has 3 direct callers (L0d53, L56c4)
+- **-52 ASM lines** (14,106 → 14,054)
+- Confirmed: F004a! ≈ 6601 (≈ 2500 × F0042!), vs F0046! ≈ 26405 (≈ 10000 × F0042!)
+- QB64 note: these loops need `_DELAY` conversion like L3c57/L3c90
+
 ### 2026-05-27 — Decompilation Session 4: L3a10
 - Completed `FUN_01a2_3a10` = L3a10 subroutine (score recalculator + display)
 - FOR loop i=1 to 9: checks Fa246!(i,1) damage type, adds 50/100/200/60 to running total
@@ -71,15 +90,14 @@ Update this file at the end of each work session.
 
 ## Current Work State
 
-**Next target:** `L3cc9` (FUN_01a2_3cc9) — unknown function.
-At `lanlokre.bas` line 695, address 01a2:3cc9.
-Run: `.\tools\extract_fn.ps1 -Address 3cc9`
+**Next target:** `L3d3b` (FUN_01a2_3d3b) — unknown function.
+At `lanlokre.bas` line 683, address 01a2:3d3b.
+Run: `.\tools\extract_fn.ps1 -Address 3d3b`
 
-**Progress after session 4 (2026-05-27):**
-- Raw ASM lines in lanlokre.bas: 14,106 (85.6%)
-- Total lines: 16,481
-- Removed this session: 247 ASM lines (L3a10 complete)
-- Removed all sessions: 1,350 ASM lines total
+**Progress after delay conversion pass (2026-05-27):**
+- Raw ASM lines in lanlokre.bas: 14,054 (85.7%) — unchanged (conversions were in BASIC)
+- Total lines: 16,394 (trimmed 10 lines from shorter delay replacements)
+- Functions now done: 13 (L3c57 and L3c90 now fully complete)
 
 **Baseline (before any decompilation work):**
 - Raw ASM lines: 15,456 (86.1%)

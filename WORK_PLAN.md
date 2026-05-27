@@ -78,10 +78,10 @@ Status: ✅ Done / 🔄 Partial / ⬜ Todo
 | FUN_01a2_3522 | L3522 | Animate computer screen: 3 LINEs + flickering PSET + scan-line WHILE loop | ✅ Done |
 | FUN_01a2_376f | L376f | Al fixes computer: SOUND alert, tally damage counters, PRINT score, erase+redraw icon | ✅ Done |
 | FUN_01a2_3a10 | L3a10 | Score recalculator: loop computers 1-9 (damage pts 50/100/200/60), Hobbs special (75/130/400/85), clamp ≥0, LOCATE+PRINT score | ✅ Done |
-| FUN_01a2_3c57 | L3c57 | Delay/pause loop (uses F0042!/F003a!) | ⬜ Todo |
-| FUN_01a2_3c90 | L3c90 | Delay/pause loop variant | 🔄 Partial |
-| FUN_01a2_3cc9 | L3cc9 | (unknown) | ⬜ Todo |
-| FUN_01a2_3d02 | L3d02 | (unknown) | ⬜ Todo |
+| FUN_01a2_3c57 | L3c57 | Delay ≈ 0.263 s → `_DELAY 0.263` (was F0046!=26405 iters) | ✅ Done |
+| FUN_01a2_3c90 | L3c90 | Delay ≈ 0.263 s → `_DELAY 0.263` (same; shares RET) | ✅ Done |
+| FUN_01a2_3cc9 | L3cc9 | Delay ≈ 0.066 s → `_DELAY 0.066` (was F004a!=6601 iters; no RET, falls through) | ✅ Done |
+| FUN_01a2_3d02 | L3d02 | Delay ≈ 0.066 s → `_DELAY 0.066` (same; owns shared RET) | ✅ Done |
 | FUN_01a2_3d3b | L3d3b | (unknown — send mail attack?) | ⬜ Todo |
 | FUN_01a2_422d | L422d | (unknown) | ⬜ Todo |
 | FUN_01a2_4246 | L4246 | (unknown) | ⬜ Todo |
