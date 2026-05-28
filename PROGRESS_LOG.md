@@ -6,6 +6,72 @@ and what changed in the repo.
 
 ---
 
+## Session 11 — 2026-05-28 (LOCATE/COLOR Calling Convention Corrections)
+
+### What was done
+Reviewed the newly committed `Known_Instruction_Formats.md` from the repo owner, which documents
+the Pascal calling convention for LOCATE and COLOR. This revealed a **systematic error in all
+Claude-written code** from sessions 1-10:
+
+- **LOCATE** had been written with 5 arguments `LOCATE row, col, cursor, start, stop` — always wrong.
+  Correct form: `LOCATE row, col` (2 args only). The trailing push value "4" is the vararg word-count,
+  not a cursor-shape argument; there are no cursor-shape LOCATE calls in this executable.
+- **COLOR** had been written with 2 arguments `COLOR fg, bg` — always wrong.
+  Correct form: `COLOR fg` (1 arg only). The trailing "2" is the word-count, not a background color;
+  there are no 2-arg COLOR calls in this executable.
+
+Root cause: incorrect assumption of C right-to-left push ordering, and misreading the
+vararg word-count at the end of each push sequence as a content argument.
+
+Also performed a **non-ASCII character cleanup**: 7 occurrences of UTF-8 multi-byte characters
+(`~`, `--`, `->` replacements for `≈`, `—`, `→`) were fixed to prevent mojibake in Notepad++
+and GitHub web UI (both use Latin-1/CP1252 assumptions).
+
+### 14 LOCATE/COLOR corrections in lanlokre.bas
+
+| Function | Old (wrong) | New (correct) |
+|----------|-------------|---------------|
+| L376f    | `LOCATE 4, 44, 1, INT(18 + Fa46a!), 1` | `LOCATE INT(18 + Fa496!), 44` (also wrong variable) |
+| L376f    | `LOCATE 4, 44, 1, 18, 1` | `LOCATE 18, 44` |
+| L376f    | `COLOR 2, 13` | `COLOR 13` |
+| L376f    | `LOCATE 4, 68, 1, INT(17 + Fa46a!), 1` | `LOCATE INT(17 + Fa46a!), 68` |
+| L376f    | `COLOR 2, 2` | `COLOR 2` |
+| L3a10    | `LOCATE 4, 74, 1, 29, 1` | `LOCATE 29, 74` (row/col were TRANSPOSED) |
+| L3a10    | `COLOR 2, 13` | `COLOR 13` |
+| L3a10    | `LOCATE 4, 74, 1, 29, 1` (second) | `LOCATE 29, 74` |
+| L3d3b    | `LOCATE 4, 68, 1, INT(17 + Fa472!), 1` | `LOCATE INT(17 + Fa472!), 68` |
+| L3d3b    | `COLOR 2, 14` | `COLOR 14` |
+| L42d5    | `LOCATE 4, 68, 1, INT(17 + Fa472!), 1` | `LOCATE INT(17 + Fa472!), 68` |
+| L42d5    | `COLOR 2, 9` | `COLOR 9` |
+| L5018    | `LOCATE 4, 68, 1, INT(17 + Fa472!), 1` | `LOCATE INT(17 + Fa472!), 68` |
+| L5018    | `COLOR 2, 12` | `COLOR 12` |
+
+### Additional bug found and fixed
+In L376f line 618, the variable was also wrong: `Fa46a!` (Al's target computer index, range 1-10)
+was used instead of `Fa496!` (damage type temp, range 1-4). The row for the score-status print is
+`INT(18 + damage_type)` (rows 19-22), not `INT(18 + target_index)` (rows 19-28).
+Verified from ASM at address 01a2:386c: `FADD float ptr [0xa496]`.
+
+### Most critical corrections
+1. **L3a10 score display**: row and column were transposed. `LOCATE 4, 74` -> `LOCATE 29, 74`.
+   The score was going to row 4 col 74 (near top of screen) instead of row 29 col 74 (status bar).
+2. **L376f damage-type row**: Wrong variable `Fa46a!` replaced with correct `Fa496!`.
+
+### Rule changes
+- **CLAUDE.md**: Runtime Calls section completely rewritten with unambiguous rules:
+  - `COLOR fg` -- always 1-arg. No `COLOR fg, bg` form exists in this executable.
+  - `LOCATE row, col` -- always 2-arg. No 5-arg form exists in this executable.
+  - Also added ASCII-Only Comments directive.
+- **Known_Instruction_Formats.md**: Added "Observed usage" subsections for COLOR and LOCATE
+  documenting the 1-arg and 2-arg forms observed, plus the 4-push short form (literal row constant).
+
+### Files changed
+- `lanlokre.bas`: 14 LOCATE/COLOR corrections + 7 non-ASCII character replacements
+- `CLAUDE.md`: Updated calling convention rules + ASCII-only directive
+- `Known_Instruction_Formats.md`: Added observed-usage notes
+
+---
+
 ## Session 10 — 2026-05-27 (L5018: ERASED Attack Subroutine)
 
 ### What was done

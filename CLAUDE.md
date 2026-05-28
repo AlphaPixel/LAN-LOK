@@ -72,8 +72,19 @@ This rule applies only to `lanlokre.bas` comments. Markdown files (`.md`) may us
 - `RET` in ASM → `RETURN` in BASIC
 
 ### Runtime Calls → BASIC
-- `CALLF COLOR` → `COLOR fg[,bg]`
-- `CALLF LOCATE` → `LOCATE row,col`
+
+**LOCATE and COLOR use Pascal variable-argument lists (see `Known_Instruction_Formats.md`).**
+
+- `CALLF COLOR` → `COLOR fg` — **always one argument (foreground color only)**
+  - ASM pattern: `PUSH 1 / PUSH fg_value / PUSH 2 / CALLF COLOR`
+  - There is NO 2-arg `COLOR fg, bg` form in this executable. Do NOT write `COLOR x, y`.
+  - The second pushed word (2) is the argument count, not a background color.
+
+- `CALLF LOCATE` → `LOCATE row, col` — **always two arguments (row, column)**
+  - ASM pattern A (literal row): `PUSH row / PUSH 1 / PUSH col / PUSH 4 / CALLF LOCATE`
+  - ASM pattern B (computed row): `PUSH 1 / PUSH row_expr / PUSH 1 / PUSH col / PUSH 4 / CALLF LOCATE`
+  - The trailing `4` is the argument-word count; `1` before col is its type indicator.
+  - There is NO 5-arg `LOCATE row,col,cursor,start,stop` form. Do NOT write it.
 - `CALLF PRINT_STR_NEWLINE` → `PRINT "string"`
 - `CALLF LINE` → `LINE (x1,y1)-(x2,y2),c[,style]`
 - `CALLF SOUND` → `SOUND freq,duration`

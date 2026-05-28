@@ -13,6 +13,19 @@ Update this file at the end of each work session.
 
 ## Session Log
 
+### 2026-05-28 — Correction Session 11: LOCATE/COLOR calling convention sweep
+- Reviewed `Known_Instruction_Formats.md` (new file from repo owner documenting Pascal call convention)
+- Discovered all Claude-written LOCATE and COLOR calls were wrong (5-arg and 2-arg forms, respectively)
+- Correct forms: `LOCATE row, col` (2-arg only), `COLOR fg` (1-arg only)
+- Root cause: C calling convention assumption + misreading vararg word-count as a content argument
+- **14 corrections** across L376f, L3a10, L3d3b, L42d5, L5018
+- Most critical: L3a10 score display had row/col TRANSPOSED (LOCATE 4,74 -> LOCATE 29,74)
+- Also fixed: L376f used wrong variable Fa46a! instead of Fa496! for damage-type row
+- **7 non-ASCII character fixes** in comments (U+2248/U+2014/U+2192 -> ~/--/->) to prevent Notepad++ mojibake
+- Updated CLAUDE.md with mandatory calling convention rules
+- Updated Known_Instruction_Formats.md with observed-usage notes
+- No new functions decompiled -- this was a correction-only session
+
 ### 2026-05-27 — Decompilation Session 10: L5018 (ERASED attack)
 - Completed `FUN_01a2_5018` + stubs `FUN_01a2_50b2` + `FUN_01a2_5124` = L5018 — the ERASED (damage type 2) attack
 - 806 raw ASM lines replaced with 42 lines of BASIC
@@ -147,10 +160,10 @@ Update this file at the end of each work session.
 At `lanlokre.bas` line 846, address 01a2:56c4.
 Run: `.\tools\extract_fn.ps1 -Address 56c4`
 
-**Progress after session 10 — L5018 (2026-05-27):**
-- Raw ASM lines in lanlokre.bas: 11,207 (83.6% of 13,410)
+**Progress after session 11 — LOCATE/COLOR corrections (2026-05-28):**
+- Raw ASM lines in lanlokre.bas: 11,207 (unchanged -- corrections only, no new decompilation)
 - Functions done: L2e2d, L3522, L376f, L3a10, L3c57, L3c90, L3cc9, L3d02, L3d3b/422d/4246, L42d5, L5018/50b2/5124
-- Lines removed this session: 719 (via L5018 splice)
+- All LOCATE and COLOR calls verified correct per Known_Instruction_Formats.md
 
 **Baseline (before any decompilation work):**
 - Raw ASM lines: 15,456 (86.1%)

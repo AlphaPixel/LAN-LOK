@@ -613,19 +613,19 @@ IF Fa496! = 1 THEN Fa43e! = Fa43e! + 1                ' Tally damage-type 1 fix
 IF Fa496! = 2 THEN Fa442! = Fa442! + 1                ' Tally damage-type 2 fix
 IF Fa496! = 3 THEN Fa446! = Fa446! + 1                ' Tally damage-type 3 fix
 IF Fa496! = 4 THEN Fa43a! = Fa43a! + 1                ' Tally damage-type 4 fix
-' Position text cursor at score display (cursor scan-lines set out-of-range to hide cursor)
+' Position at the row for this damage-type tally counter (rows 19-22 = types 1-4)
 IF Fa496! < 4 THEN
-    LOCATE 4, 44, 1, INT(18 + Fa46a!), 1
+    LOCATE INT(18 + Fa496!), 44
 ELSE
-    LOCATE 4, 44, 1, 18, 1
+    LOCATE 18, 44
 END IF
-COLOR 2, 13                                            ' Green text on magenta
+COLOR 13                                               ' Magenta text
 IF Fa496! = 1 THEN PRINT Fa43e!
 IF Fa496! = 2 THEN PRINT Fa442!
 IF Fa496! = 3 THEN PRINT Fa446!
 IF Fa496! = 4 THEN PRINT Fa43a!
-LOCATE 4, 68, 1, INT(17 + Fa46a!), 1                  ' Move to OK label column
-COLOR 2, 2
+LOCATE INT(17 + Fa46a!), 68                            ' Move to OK label column (row = computer's row)
+COLOR 2                                                ' Green text
 PRINT "O.K.       "                                    ' Print OK confirmation
 Fa246!(INT(Fa46a!), 1) = 0                             ' Clear damage entry (0 = OK)
 GOSUB L3a10
@@ -649,10 +649,10 @@ IF Fa246!(10, 1) = 2 THEN Fa49a! = Fa49a! + 130
 IF Fa246!(10, 1) = 3 THEN Fa49a! = Fa49a! + 400
 IF Fa246!(10, 1) = 4 THEN Fa49a! = Fa49a! + 85
 IF Fa49a! < 0 THEN Fa49a! = 0
-LOCATE 4, 74, 1, 29, 1
-COLOR 2, 13
+LOCATE 29, 74
+COLOR 13                                               ' Magenta text
 PRINT "    ";
-LOCATE 4, 74, 1, 29, 1
+LOCATE 29, 74
 PRINT Fa49a!;
 Fa456! = Fa49a!
 RETURN
@@ -677,8 +677,8 @@ L3d3b:
 IF TIMER > Fa4ae! THEN Fa4ae! = TIMER
 Fa4ae! = Fa4ae! + 12 + RND(1) * 10                  ' Repair time: now + 12-22 s (random)
 Fa246!(INT(Fa472!), 2) = Fa4ae!                      ' Store repair time for target
-LOCATE 4, 68, 1, INT(17 + Fa472!), 1
-COLOR 2, 14
+LOCATE INT(17 + Fa472!), 68
+COLOR 14                                              ' Yellow text
 PRINT "LAN LOCKED "
 Fa246!(INT(Fa472!), 1) = 1                           ' Mark damage type 1
 GOSUB L3a10                                          ' Recalculate score
@@ -716,8 +716,8 @@ L42d5:
 IF TIMER > Fa4ae! THEN Fa4ae! = TIMER
 Fa4ae! = Fa4ae! + 16 + RND(1) * 15                  ' Repair time: now + 16-31 s
 Fa246!(INT(Fa472!), 2) = Fa4ae!                      ' Store repair time for target
-LOCATE 4, 68, 1, INT(17 + Fa472!), 1
-COLOR 2, 9
+LOCATE INT(17 + Fa472!), 68
+COLOR 9                                               ' Cyan text
 PRINT "PRINTER JAM "
 Fa246!(INT(Fa472!), 1) = 4                           ' Damage type 4
 GOSUB L3a10                                          ' Recalculate score
@@ -800,8 +800,8 @@ Fa4ae! = Fa4ae! + 30 + RND(1) * 15               ' Repair time: now + 30-45 s
 Fa246!(INT(Fa472!), 2) = Fa4ae!                   ' Store repair time for target
 Fa246!(INT(Fa472!), 1) = 2                        ' Damage type 2 (ERASED)
 GOSUB L3a10                                        ' Recalculate score
-LOCATE 4, 68, 1, INT(17 + Fa472!), 1
-COLOR 2, 12
+LOCATE INT(17 + Fa472!), 68
+COLOR 12                                              ' Light-red text
 PRINT "ERASED     "
 Fa232! = Fa246!(INT(Fa472!), 3)                   ' Load target Y screen position
 Fa22e! = Fa246!(INT(Fa472!), 4)                   ' Load target X screen position

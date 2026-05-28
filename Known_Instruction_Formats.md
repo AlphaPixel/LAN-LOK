@@ -33,3 +33,21 @@ This would correspond to the BASIC statement "COLOR 13". For both foreground and
 
 would correspond to the BASIC statement "COLOR 13,6".
 
+## Observed usage in this executable
+
+All COLOR calls found in lanlok.asm use the 3-argument (foreground-only) form. No 5-argument
+(foreground + background) COLOR call has been observed. When translating, always emit `COLOR fg`
+with a single argument. The "2" at the end of every COLOR push sequence is the argument count
+(2 words = 1 type-indicator + 1 value), NOT a background color.
+
+## Observed LOCATE pattern
+
+In addition to the 5-push full form `1, row, 1, col, 4`, a 4-push short form also appears when
+the row is a compile-time integer constant:
+
+    row_literal, 1, col, 4
+
+Both forms decode to `LOCATE row, col` (two arguments). The trailing `4` is the word count;
+the `1` before col is the col's type indicator. No LOCATE call in this executable supplies more
+than 2 arguments (row and col).
+
