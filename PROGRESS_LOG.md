@@ -6,6 +6,61 @@ and what changed in the repo.
 
 ---
 
+## Session 12 — 2026-05-28 (Semantic Symbol Renaming)
+
+### What was done
+Renamed all generic decompilation symbol names (`Fa22e!`, `L376f`, etc.) in the decompiled
+BASIC section of `lanlokre.bas` to semantically meaningful names that reflect game logic.
+ASM sections were left untouched — those hex-address names are ground truth for cross-referencing
+with `lanlok.asm` and `LANLOKDS.BIN`.
+
+### Scope
+- **35 float/string variables** renamed (e.g. `Fa22e!` → `drawX!`, `Fa472!` → `target!`)
+- **32 subroutine labels** renamed (e.g. `L3d3b` → `LAtkLock`, `L376f` → `LAlFix`)
+- **2 variables kept** with original names: `Fa44e!` and `Fa452!` (purpose unknown, only
+  initialized to 0 in decompiled code; used in undecompiled stubs)
+- **Undecompiled label stubs** kept with original hex names (`L56c4`, `L637d`, etc.)
+
+### Annotation strategy
+Every renamed symbol is documented in two ways:
+1. **Master glossary** added to `lanlokre.bas` lines 2-86, listing all renames with
+   semantic descriptions.
+2. **Inline comment** on each label definition: `LAlFix:   ' LAlFix=L376f`
+3. **DIM/first-assignment comment** for variables: `DIM compStat!(10,5)  ' compStat!=Fa246!`
+4. **Off-topic reuse note** where a variable is used outside its primary role:
+   `' NOTE: dmgType! (=Fa496!) reused as loop variable below -- not damage type here`
+
+### Key renames
+| Category | Old | New | Why |
+|----------|-----|-----|-----|
+| Icon position | `Fa22e!` | `drawX!` | X pixel base for all icon drawing |
+| Icon position | `Fa232!` | `drawY!` | Y pixel base for all icon drawing |
+| Game target | `Fa472!` | `target!` | Player's selected attack target |
+| Score | `Fa456!` | `score!` | Player cumulative score |
+| Status array | `Fa246!` | `compStat!` | Computer status/damage array |
+| Repair time | `Fa4ae!` | `repairEnd!` | When Al will finish the repair queue |
+| Al's fix target | `Fa46a!` | `alTarget!` | Which computer Al is repairing |
+| Game clock | `Fa44a!` | `gameEnd!` | TIMER value at game end |
+| Fix tallies | `Fa43a/e/2/6!` | `alFixPJam/Lock/Eras/Fmt!` | Al's per-type fix counts |
+| Attack routines | `L3d3b/42d5/5018` | `LAtkLock/PJam/Erase` | Which attack each implements |
+| Al fix routine | `L376f` | `LAlFix` | Al repairs a computer |
+| Score routine | `L3a10` | `LCalcScore` | Recalculate and display score |
+| Draw routine | `L2e2d` | `LDrawIcon` | Draw computer icon |
+| Game loop | `L1e78` | `LGameLoop` | Main game loop |
+
+### Rule added to CLAUDE.md
+New "Semantic Naming of Decompiled Symbols" section added, covering:
+- Naming conventions for variables and labels
+- Annotation format (`newname=oldname`) at definitions
+- When to keep vs rename (confirmed purpose required; stubs stay hex)
+- Multi-purpose scratch variable policy
+
+### Files changed
+- `lanlokre.bas`: all renames + 86-line glossary + 32 label annotations + 2 reuse notes
+- `CLAUDE.md`: new Semantic Naming section + updated Variable Naming table + updated Subroutine Labels section
+
+---
+
 ## Session 11 — 2026-05-28 (LOCATE/COLOR Calling Convention Corrections)
 
 ### What was done

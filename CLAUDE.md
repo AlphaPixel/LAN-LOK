@@ -54,6 +54,50 @@ Use these ASCII substitutes in comments (never the Unicode originals):
 
 This rule applies only to `lanlokre.bas` comments. Markdown files (`.md`) may use Unicode freely.
 
+### Semantic Naming of Decompiled Symbols
+
+Generic decompilation names (`Fa22e!`, `L3d3b`, etc.) must be replaced with names that reflect
+purpose in the game logic as soon as their role is understood. The original name is preserved
+**only** in comments.
+
+**Rules:**
+
+1. **Choose a descriptive name** from the symbol's primary semantic role.
+   - Variables: concise camelCase with type suffix, e.g. `drawX!`, `repairEnd!`, `cmdBuf$`
+   - Labels: `L` prefix + PascalCase verb/noun, e.g. `LAlFix`, `LAtkLock`, `LCalcScore`
+   - QuickBASIC constraints: max 40 chars, must start with a letter, alphanumeric only
+     (plus type suffix `!`, `$`, `%`, `&`, `#`); identifiers are case-insensitive.
+
+2. **Annotate every label definition** with an inline comment:
+   ```basic
+   LAlFix:   ' LAlFix=L376f
+   ```
+   For labels that already have a description comment, prepend the mapping:
+   ```basic
+   LRndSound:   ' LRndSound=L0b97 -- Play a random intro sound
+   ```
+
+3. **Annotate the DIM/first-assignment** of each variable:
+   ```basic
+   DIM compStat!(10,5)   ' compStat!=Fa246!  -- computer status array
+   ```
+
+4. **Maintain the glossary** at the top of `lanlokre.bas` (lines ~2-84).
+   When adding a newly renamed symbol, add its entry to the glossary.
+
+5. **Do NOT rename** symbols that appear only in undecompiled raw-ASM sections.
+   Those hex-style names (`Fa22e!`, `L56c4`) are ground-truth identifiers matching
+   `lanlok.asm` and `LANLOKDS.BIN`. Rename only symbols whose purpose is confirmed
+   by reading decompiled BASIC logic.
+
+6. **Multi-purpose scratch variables** (e.g., `dmgType!` reused as a loop variable
+   in `LAtkPJam`) keep the name of their **primary semantic role** and carry a comment
+   at each off-topic reuse site:
+   ```basic
+   ' NOTE: dmgType! (=Fa496!) reused as loop variable below -- not damage type here
+   FOR dmgType! = 3 TO 9 STEP 2
+   ```
+
 ### File Structure of `lanlokre.bas`
 - Lines starting with `       01a2:` are **raw ASM** — not yet decompiled
 - Lines that look like BASIC are **done**
@@ -61,14 +105,32 @@ This rule applies only to `lanlokre.bas` comments. Markdown files (`.md`) may us
 - A compiled check: `(Select-String lanlokre.bas -Pattern '^\s+01a2:').Count` → target 0
 
 ### Variable Naming (DS address → BASIC name)
-- `Fa_xxxx!` = single-precision float at DS offset 0x_xxxx
+- `Fa_xxxx!` = single-precision float at DS offset 0x_xxxx (original decompilation convention)
 - `Sa_xxxx$` = string variable at DS offset 0x_xxxx
-- Key vars: `Fa22e!`=drawX, `Fa232!`=drawY, `Fa236!`=color, `Fa472!`=target#,
-  `Fa456!`=score, `Sa46e$`=command input, `Fa246!(i,j)`=computer status array
+- In undecompiled ASM sections, these hex-address names are still used as-is.
+- In decompiled BASIC, all named variables have been renamed to semantic names (see glossary
+  at top of `lanlokre.bas`). Key semantic names and their original DS-address equivalents:
+
+| Semantic name  | Original name | Meaning |
+|----------------|---------------|---------|
+| `drawX!`       | `Fa22e!`      | Icon base X pixel coordinate |
+| `drawY!`       | `Fa232!`      | Icon base Y pixel coordinate |
+| `target!`      | `Fa472!`      | Player selected target (0=SKUA, 1-10) |
+| `score!`       | `Fa456!`      | Player cumulative score |
+| `cmdBuf$`      | `Sa46e$`      | Command input accumulator |
+| `compStat!`    | `Fa246!`      | Computer status array (10×5) |
+| `repairEnd!`   | `Fa4ae!`      | Repair-queue end timestamp |
+| `alTarget!`    | `Fa46a!`      | Al's current repair-target index |
+| `gameEnd!`     | `Fa44a!`      | Game end timestamp (TIMER+300 s) |
+
+Full glossary of all 35+ renamed symbols is in `lanlokre.bas` lines ~2-84.
 
 ### Subroutine Labels
-- BASIC labels use the CS address: `L3c57:` for `FUN_01a2_3c57`
-- `CALL FUN_01a2_XXXX` in ASM → `GOSUB LXXXX` in BASIC
+- When first decompiled, BASIC labels use the CS address: `L3c57:` for `FUN_01a2_3c57`
+- Once the function's purpose is known, rename to a semantic label (see Semantic Naming rules above)
+  and annotate: `LPause263a:   ' LPause263a=L3c57`
+- Undecompiled stubs keep their hex labels; do not rename until they are fully translated.
+- `CALL FUN_01a2_XXXX` in ASM → `GOSUB LXXXX` initially, then updated when renamed
 - `RET` in ASM → `RETURN` in BASIC
 
 ### Runtime Calls → BASIC

@@ -13,6 +13,15 @@ Update this file at the end of each work session.
 
 ## Session Log
 
+### 2026-05-28 — Refactoring Session 12: Semantic symbol renaming
+- Renamed 35 float/string variables and 32 subroutine labels in decompiled BASIC section
+- Key renames: Fa22e!/Fa232! -> drawX!/drawY!, Fa472! -> target!, Fa456! -> score!,
+  Fa246! -> compStat!, L3d3b/42d5/5018 -> LAtkLock/PJam/Erase, L376f -> LAlFix
+- Added 86-line symbol glossary at top of lanlokre.bas + inline annotations at all label defs
+- ASM sections untouched -- hex names preserved for cross-reference with lanlok.asm
+- 2 unknowns kept as-is: Fa44e! and Fa452! (purpose unknown, only set in decompiled code)
+- Added "Semantic Naming" rule section to CLAUDE.md
+
 ### 2026-05-28 — Correction Session 11: LOCATE/COLOR calling convention sweep
 - Reviewed `Known_Instruction_Formats.md` (new file from repo owner documenting Pascal call convention)
 - Discovered all Claude-written LOCATE and COLOR calls were wrong (5-arg and 2-arg forms, respectively)

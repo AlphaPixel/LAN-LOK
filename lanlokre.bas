@@ -1,4 +1,89 @@
-﻿DIM Fa246!(10,5)
+﻿DIM compStat!(10,5)     ' compStat!=Fa246!  -- computer status array (10 computers x 5 attrs)
+
+' ---------------------------------------------------------------------------
+' SYMBOL RENAMING GLOSSARY
+' Generic decompilation names -> semantic names (newname=oldname)
+'
+' VARIABLES (floats unless noted)
+'   drawX!      =Fa22e!   icon base X pixel coordinate
+'   drawY!      =Fa232!   icon base Y pixel coordinate
+'   iconScr!    =Fa22a!   icon screen-area fill color
+'   drawClr!    =Fa236!   current pen/arrow draw color
+'   score!      =Fa456!   player cumulative score
+'   target!     =Fa472!   player selected target (0=none/SKUA, 1-10)
+'   gameEnd!    =Fa44a!   game end timestamp (TIMER + 300 s)
+'   minsLeft!   =Fa462!   time remaining in minutes (display value)
+'   lockUntil!  =Fa29e!   input throttle: skip game loop until TIMER exceeds this
+'   compI!      =Fa466!   game-loop computer iterator (1-10)
+'   alTarget!   =Fa46a!   Al's current repair-target index
+'   dmgCount!   =Fa45a!   count of damaged computers per loop pass
+'   curTime!    =Fa45e!   TIMER snapshot for repair-due comparison
+'   repairEnd!  =Fa4ae!   repair-queue end timestamp (shared by attack routines)
+'   newScore!   =Fa49a!   score recalculation accumulator
+'   dmgType!    =Fa496!   damage type of repaired computer (L376f primary use);
+'                          reused as loop variable in LAtkPJam -- see comments there
+'   alFixLock!  =Fa43e!   Al fix tally: computers unlocked (damage type 1)
+'   alFixEras!  =Fa442!   Al fix tally: erasures restored  (damage type 2)
+'   alFixFmt!   =Fa446!   Al fix tally: disks reconstructed(damage type 3)
+'   alFixPJam!  =Fa43a!   Al fix tally: printers unjammed  (damage type 4)
+'   compIdx!    =Fa42e!   computer-name index during setup loop
+'   selI!       =Fa476!   SELECT animation loop index
+'   rejectP!    =Fa486!   SELECT network-rejection probability
+'   hobbsFmt!   =Fa48a!   flag: Hobbs FORMAT attack succeeded this turn
+'   rndSndF!    =Fa23a!   intro random-sound frequency
+'   fanSndF!    =Fa23e!   intro fanfare sound frequency
+'   scanYBot!   =Fa48e!   scan-line animation bottom Y bound
+'   paperLen!   =Fa4b2!   printer paper random line length
+'   jamH!       =Fa4b6!   jammed paper frame height (random)
+'   jamLim!     =Fa4ba!   jamH - 1 (variable-frame loop limit)
+'   chaosY!     =Fa482!   printer-jam chaos random row
+'   loopI!      =Fa226!   first general-purpose loop variable (also scanline Y)
+'   loopJ!      =Fa492!   second general-purpose loop variable / scan-line length
+'   loopK!      =F003a!   third general-purpose loop variable (calibration legacy)
+'   Fa44e!      (kept)    purpose unknown -- only set to 0 in decompiled code; used in stubs
+'   Fa452!      (kept)    purpose unknown -- only set to 0 in decompiled code; used in stubs
+'
+' STRING VARIABLES
+'   keyIn$      =Sa242$   INKEY$ keyboard input buffer
+'   cmdBuf$     =Sa46e$   command input accumulator
+'   compNames$  =Sa42a$   packed computer-names string (10 chars each)
+'   compName$   =Sa432$   current computer name temp
+'   playerName$ =Sa436$   player machine name ("SKUA")
+'
+' SUBROUTINE LABELS (decompiled; undecompiled stubs keep hex names)
+'   LIntroGfx   =L01a3   graphical intro entry point
+'   LRndSound   =L0b97   play a random intro sound
+'   LDrawArrow  =L0bcb   draw intro arrow graphic
+'   LClrArrow   =L0d53   clear intro arrow graphic
+'   LIntroText  =L0d85   third intro segment (text box 3)
+'   LGameLoop   =L1e78   main game loop
+'   LNextComp   =L1fb0   skip to next computer in game loop
+'   LNoInput    =L20a1   branch: no key pressed this frame
+'   LInputEnd   =L20c8   after key accumulation
+'   LCmdProc    =L210a   parse and dispatch entered command
+'   LCmdSel     =L2276   SELECT command entry
+'   LSelLoop    =L22a5   SELECT: await target name input
+'   LSelChk     =L2390   SELECT: display partial input
+'   LSelParse   =L23b5   SELECT: ENTER pressed, parse name
+'   LSelDone    =L26a3   SELECT: after target validated
+'   LCmdPrint   =L28d7   PRINT command entry
+'   LCmdMail    =L29bd   SEND MAIL command entry
+'   LCmdDel     =L2aa3   DEL *.* command entry
+'   LCmdFmt     =L2b8d   FORMAT C: command entry
+'   LResetSel   =L2d76   reset target selection to SKUA
+'   LUpdTimer   =L2dbb   update on-screen timer display
+'   LDrawIcon   =L2e2d   draw a computer icon at (drawX!,drawY!)
+'   LAnimDmg    =L3522   animate screen of a healthy/active computer
+'   LAlFix      =L376f   Al fixes a damaged computer
+'   LCalcScore  =L3a10   recalculate and display player score
+'   LPause263a  =L3c57   delay ~0.263 s (instance A)
+'   LPause263b  =L3c90   delay ~0.263 s (instance B)
+'   LPause066a  =L3cc9   delay ~0.066 s (instance A)
+'   LPause066b  =L3d02   delay ~0.066 s (instance B)
+'   LAtkLock    =L3d3b   attack: LAN LOCKED  (damage type 1)
+'   LAtkPJam    =L42d5   attack: PRINTER JAM (damage type 4)
+'   LAtkErase   =L5018   attack: ERASED      (damage type 2)
+' ---------------------------------------------------------------------------
 
 ' Calibration block removed -- QB64 runs too fast for the original timing loop.
 ' Original: 37700 iterations measured with TIMER to scale F0042!/F0046!/F004a!.
@@ -9,79 +94,79 @@ CLS 0
 COLOR 14
 LOCATE 8,15
 PRINT "               *****  LAN-LOK  *****"
-GOSUB L3c57:GOSUB L3c57:GOSUB L3c57
+GOSUB LPause263a:GOSUB LPause263a:GOSUB LPause263a
 COLOR 9
 LOCATE 12,15
 PRINT "          by Mark Chappell and Shane Maloney"
-GOSUB L3c57:GOSUB L3c57:GOSUB L3c57
+GOSUB LPause263a:GOSUB LPause263a:GOSUB LPause263a
 COLOR 12
 LOCATE 16,14
 PRINT "   Developed at Palmer Station, February-March 1991"
-GOSUB L3c57:GOSUB L3c57:GOSUB L3c57
+GOSUB LPause263a:GOSUB LPause263a:GOSUB LPause263a
 
 ' Init for second intro
 SCREEN 12
 RANDOMIZE TIMER
 
 GOSUB Lae3d
-L01a3:
+LIntroGfx:   ' LIntroGfx=L01a3
 CLS 0
 
-GOSUB L0b97
+GOSUB LRndSound
 ' Set background
 LINE (0,0)-(640,444),3,BF
 ' Draw L
 LINE (40,30)-(30,150),4:LINE (44,30)-(26,150),4:LINE (38,30)-(31,150),4:LINE (30,150)-(80,140),4:LINE (26,149)-(76,137),4
 
-GOSUB L3c90
-GOSUB L0b97
+GOSUB LPause263b
+GOSUB LRndSound
 
 ' Draw A
 LINE (110,135)-(140,20),4:LINE (105,128)-(135,24),4:LINE (107,130)-(137,22),4:LINE (134,20)-(160,134),4
 LINE (130,22)-(155,136),4:LINE (120,70)-(140,75),4:LINE (115,74)-(145,74),4:LINE (114,76)-(146,76),4
 
-GOSUB L3c90
-GOSUB L0b97
+GOSUB LPause263b
+GOSUB LRndSound
 
 ' Draw N
 LINE (200,20)-(190,134),4:LINE (197,22)-(192,136),4:LINE (204,21)-(195,136),4:LINE (200,20)-(240,150),4
 LINE (198,20)-(235,140),4:LINE (197,19)-(236,144),4:LINE (235,145)-(240,20),4:LINE (233,144)-(235,23),4
 
-GOSUB L3c90
-GOSUB L0b97
+GOSUB LPause263b
+GOSUB LRndSound
 
 ' Draw -
 LINE (260,80)-(290,80),4:LINE (260,76)-(289,82),4:LINE (259,82)-(292,84),4
 
-GOSUB L3c90
-GOSUB L0b97
+GOSUB LPause263b
+GOSUB LRndSound
 
 ' Draw L
 LINE (330,24)-(325,140),4:LINE (326,22)-(333,143),4:LINE (324,138)-(390,140),4:LINE (320,140)-(392,135),4:LINE (319,142)-(393,142),4
 
-GOSUB L3c90
-GOSUB L0b97
+GOSUB LPause263b
+GOSUB LRndSound
 
 ' Draw O
 CIRCLE (440,78),65,4,,,1.5:CIRCLE (437,79),66,4,,,1.4:CIRCLE (433,77),63,4,,,1.3
 
-GOSUB L3c90
-GOSUB L0b97
+GOSUB LPause263b
+GOSUB LRndSound
 
 ' Draw K
 LINE (520,20)-(535,143),4:LINE (522,21)-(534,142),4:LINE (518,23)-(530,140),4:LINE (520,80)-(570,24),4
 LINE (518,82)-(574,23),4:LINE (517,85)-(570,20),4:LINE (517,74)-(575,144),4:LINE (516,70)-(580,145),4:LINE (515,72)-(583,142),4
 
 ' Draw (C)
-FOR Fa226! = 15 TO 18
-CIRCLE (600,80),Fa226!,1
-NEXT Fa226!
+FOR loopI! = 15 TO 18
+CIRCLE (600,80),loopI!,1
+NEXT loopI!
 
-FOR Fa226! = 8 TO 11
-CIRCLE (600,80),Fa226!,1,0.5,5.8
-NEXT Fa226!
+FOR loopI! = 8 TO 11
+CIRCLE (600,80),loopI!,1,0.5,5.8
+NEXT loopI!
 
-GOSUB L3c57: GOSUB L3c57
+GOSUB LPause263a: GOSUB LPause263a
 
 ' Text box 1
 LINE (10,162)-(350,260),0,BF
@@ -92,78 +177,78 @@ PRINT "Use your Computer skills"
 LINE (260,170)-(330,250),14,BF
 
 ' Computer icon
-Fa22a!=1.0
-Fa22e!=270
-Fa232!=180
-GOSUB L2e2d
+iconScr!=1.0
+drawX!=270
+drawY!=180
+GOSUB LDrawIcon
 
 ' Text box 2
-Fa22a! = 0
-GOSUB L3c57: GOSUB L3c57
+iconScr! = 0
+GOSUB LPause263a: GOSUB LPause263a
 SOUND 800,3
 LINE (280,275)-(630,330),0,BF
-Fa22e! = 410
-Fa232! = 50
+drawX! = 410
+drawY! = 50
 COLOR 12
 LOCATE 19,50
 PRINT "to defeat ";
 COLOR 2
 PRINT "`Evil Al'"		' Funny aside: The original DS memory address for this string is 0xa666 ...
 LOCATE 20,38
-GOSUB L3c57
+GOSUB LPause263a
 SOUND 200,4
 
 ' Al animation
 GOSUB L637d
 
 ' Arrow animation
-Fa236! = 63:GOSUB L0bcb
-Fa236! = 13:GOSUB L0d53:GOSUB L0bcb
-Fa236! = 12:GOSUB L0d53:GOSUB L0bcb
-Fa236! = 13:GOSUB L0d53:GOSUB L0bcb:GOSUB L0d53
-Fa236! = 4:GOSUB F0bcb
+drawClr! = 63:GOSUB LDrawArrow
+drawClr! = 13:GOSUB LClrArrow:GOSUB LDrawArrow
+drawClr! = 12:GOSUB LClrArrow:GOSUB LDrawArrow
+drawClr! = 13:GOSUB LClrArrow:GOSUB LDrawArrow:GOSUB LClrArrow
+drawClr! = 4:GOSUB F0bcb
 
-GOSUB L3c57
+GOSUB LPause263a
 SOUND 900,3
 COLOR 10
 PRINT "The noxious, noisome, nasty Network Narc"
-GOSUB L3c57
-GOSUB L3c57
-GOTO L0d85     ' Continue the intro there
+GOSUB LPause263a
+GOSUB LPause263a
+GOTO LIntroText     ' Continue the intro there
 
-L0b97:         ' Random sound effect
-Fa23a! = RND*600+40
-SOUND Fa23a!,3
+LRndSound:         ' LRndSound=L0b97 -- Random sound effect
+rndSndF! = RND*600+40
+SOUND rndSndF!,3
 RETURN
 
-L0bcb:    ' Draw the arrows
+LDrawArrow:    ' LDrawArrow=L0bcb -- Draw the arrows
 SOUND 100,2
-LINE (520,270)-(470,200),Fa236!
-LINE (520,270)-(490,270),Fa236!
-LINE (470,200)-(490,270),Fa236!
-PAINT (500,265),Fa236!,Fa236!
-LINE (460,202)-(480,198),Fa236!
-LINE (460,175)-(460,202),Fa236!
-LINE (460,175)-(480,198),Fa236!
-PAINT (463,185),Fa236!,Fa236!
+LINE (520,270)-(470,200),drawClr!
+LINE (520,270)-(490,270),drawClr!
+LINE (470,200)-(490,270),drawClr!
+PAINT (500,265),drawClr!,drawClr!
+LINE (460,202)-(480,198),drawClr!
+LINE (460,175)-(460,202),drawClr!
+LINE (460,175)-(480,198),drawClr!
+PAINT (463,185),drawClr!,drawClr!
 RETURN
 
-L0d53:  ' Clear the arrows
-GOSUB L3d02
+LClrArrow:  ' LClrArrow=L0d53 -- Clear the arrows
+GOSUB LPause066b
 LINE (460,175)-(520,270),3,BF
-GOSUB L3d02
+GOSUB LPause066b
 RETURN
 
-L0d85:		' Continue the intro
+LIntroText:		' LIntroText=L0d85 -- Continue the intro
 
 ' Text box 3
 LINE (10,370)-(630,410),0,BF
 COLOR 11
 LOCATE 25,4
-FOR F003a! = 1 to 8
-Fa23e! = RND * 1500 + 40
-SOUND Fa23e!,1
-NEXT F003a!
+FOR loopK! = 1 to 8
+fanSndF! = RND * 1500 + 40
+SOUND fanSndF!,1
+NEXT loopK!
 
 PRINT "and";
 COLOR 13
@@ -177,10 +262,10 @@ PRINT "`LOCAL  AREA  NETWORK'"
 LOCATE 29,45
 COLOR 15
 PRINT "Hit any key to display the rules:";
-WHILE LEN(Sa242$)=0
-Sa242$=INKEY$
+WHILE LEN(keyIn$)=0
+keyIn$=INKEY$
 WEND
-Sa242$=""
+keyIn$=""
 
 ' Rules page
 CLS 0
@@ -223,44 +308,44 @@ CLS 0
 GOSUB Lb207
 GOSUB Lb786
 ' Draw the main game screen
-Sa42a$="            lab     labstore    admin     Susi     Calvin    rabbit   library     ratt     Tfive     Hobbs             "
+compNames$="            lab     labstore    admin     Susi     Calvin    rabbit   library     ratt     Tfive     Hobbs             "
 RANDOMIZE TIMER
-FOR Fa226!=1 TO 5
-Fa246!(Fa226!,3)=16
-Fa246!(Fa226!,4) = Fa226! * 120 + -70
-NEXT Fa226!
-FOR Fa226!=6 TO 10
-Fa246!(Fa226!,3)=127
-Fa246!(Fa226!,4)=Fa226! * 120 + -670
-NEXT Fa226!
+FOR loopI!=1 TO 5
+compStat!(loopI!,3)=16
+compStat!(loopI!,4) = loopI! * 120 + -70
+NEXT loopI!
+FOR loopI!=6 TO 10
+compStat!(loopI!,3)=127
+compStat!(loopI!,4)=loopI! * 120 + -670
+NEXT loopI!
 SCREEN 12
 
 ' Cyan background
 LINE (0,0)-(640,480),3,BF
 
 ' Computer terminals
-Fa232! = 16
-F003a! = 6
-Fa42e! = 1
-FOR Fa22e! = 50 TO 540 STEP 120
-GOSUB L2e2d
-LOCATE F003a!,Fa22e!/8
-Sa432$=MID$(Sa42a$,10*Fa42e!,10)
-PRINT Sa432$
-Fa42e!=Fa42e!+1
-NEXT Fa22e!
-Fa232! = 127
-F003a! = 13
-FOR Fa22e!=50 TO 540 STEP 120
-GOSUB L2e2d
-LOCATE F003a!,Fa22e!/8
-Sa432$=MID$(Sa42a$,10*Fa42e!,10)
-PRINT Sa432$
-Fa42e!=Fa42e!+1
-NEXT Fa22e!
+drawY! = 16
+loopK! = 6
+compIdx! = 1
+FOR drawX! = 50 TO 540 STEP 120
+GOSUB LDrawIcon
+LOCATE loopK!,drawX!/8
+compName$=MID$(compNames$,10*compIdx!,10)
+PRINT compName$
+compIdx!=compIdx!+1
+NEXT drawX!
+drawY! = 127
+loopK! = 13
+FOR drawX!=50 TO 540 STEP 120
+GOSUB LDrawIcon
+LOCATE loopK!,drawX!/8
+compName$=MID$(compNames$,10*compIdx!,10)
+PRINT compName$
+compIdx!=compIdx!+1
+NEXT drawX!
 
 ' Status window
-Fa22a!=9
+iconScr!=9
 LINE (428,235)-(638,477),0,BF
 LINE (430,237)-(636,475),14,B
 LINE (430,256)-(636,256),14
@@ -280,24 +365,24 @@ LOCATE 25,57:PRINT "ratt:"
 LOCATE 26,57:PRINT "Tfive:"
 LOCATE 27,57:PRINT "Hobbs:"
 COLOR 2
-FOR F003a!=18 TO 27
-LOCATE F003a!,68: PRINT "O.K."
-NEXT F003a!
+FOR loopK!=18 TO 27
+LOCATE loopK!,68: PRINT "O.K."
+NEXT loopK!
 COLOR 12
-LOCATE 29,56: PRINT Sa436$;"'s SCORE:";
+LOCATE 29,56: PRINT playerName$;"'s SCORE:";
 LOCATE 29,74: PRINT 0;
 
 ' Al window
 LINE (10,235)-(420,350),0,BF
 LINE (12,237)-(418,348),14,B
-Fa22e!=30
-Fa232!=263
+drawX!=30
+drawY!=263
 GOSUB L637d
 
-Fa43a!=0
-Fa43e!=0
-Fa442!=0
-Fa446!=0
+alFixPJam!=0
+alFixLock!=0
+alFixEras!=0
+alFixFmt!=0
 LOCATE 16,15
 COLOR 14
 PRINT "Scoreboard for ";:COLOR 2: PRINT "Evil Al";:COLOR 14:PRINT ", Network Narc"
@@ -307,10 +392,10 @@ LOCATE 19,17:PRINT "Computers unlocked: "
 LOCATE 20,17:PRINT "Erasures restored: "
 LOCATE 21,17:PRINT "Hard disks reconstructed:  "
 COLOR 13
-LOCATE 18,44:PRINT Fa43a!
-LOCATE 19,44:PRINT Fa43e!
-LOCATE 20,14:PRINT Fa442!
-LOCATE 21,14:PRINT Fa446!
+LOCATE 18,44:PRINT alFixPJam!
+LOCATE 19,44:PRINT alFixLock!
+LOCATE 20,14:PRINT alFixEras!
+LOCATE 21,14:PRINT alFixFmt!
 
 ' Command window
 LINE (10,355)-(420,470),0,BF
@@ -338,107 +423,107 @@ SOUND 500,4
 SOUND 300,4
 SOUND 500,4
 SOUND 300,4
-Fa44a!=TIMER+300
-Fa44e!=0
-Fa452!=0
-Fa456!=0
+gameEnd!=TIMER+300
+Fa44e!=0   ' purpose unknown -- used in undecompiled stubs; keep original DS-address name
+Fa452!=0   ' purpose unknown -- used in undecompiled stubs; keep original DS-address name
+score!=0
 
 ' Main game loop?
-L1e78:
-Fa45a!=0
-Fa45e!=TIMER
+LGameLoop:   ' LGameLoop=L1e78
+dmgCount!=0
+curTime!=TIMER
 COLOR 15:LOCATE 27,4:PRINT ">"
-GOSUB L2dbb
-IF Fa462! < 0 THEN GOTO La58f
-FOR Fa466!=1 to 10
-Fa22e! = Fa246!(Fa466!,4)
-Fa232! = Fa246!(Fa466!,3)
-IF Fa246!(Fa466!,1) <> 0 THEN
+GOSUB LUpdTimer
+IF minsLeft! < 0 THEN GOTO La58f
+FOR compI!=1 to 10
+drawX! = compStat!(compI!,4)
+drawY! = compStat!(compI!,3)
+IF compStat!(compI!,1) <> 0 THEN
 ELSE
-GOSUB L3522
-GOTO L1fb0
-Fa45a!=Fa45a!+1
-Fa45e!=TIMER
-Fa46a!=Fa466!
-IF Fa246!(Fa466!,2) < Fa45e! THEN GOSUB L376f
-L1fb0:
-NEXT Fa466!
-IF Fa45a! > 8 THEN GOSUB L9170
-IF Fa45a! > 8 THEN GOTO Laba9
-IF TIMER > Fa29e! THEN Fa29e!=0
-IF TIMER < Fa29e! THEN GOTO L1e78
+GOSUB LAnimDmg
+GOTO LNextComp
+dmgCount!=dmgCount!+1
+curTime!=TIMER
+alTarget!=compI!
+IF compStat!(compI!,2) < curTime! THEN GOSUB LAlFix
+LNextComp:   ' LNextComp=L1fb0
+NEXT compI!
+IF dmgCount! > 8 THEN GOSUB L9170
+IF dmgCount! > 8 THEN GOTO Laba9
+IF TIMER > lockUntil! THEN lockUntil!=0
+IF TIMER < lockUntil! THEN GOTO LGameLoop
 
 ' User input processing
-Sa242$ = INKEY$
+keyIn$ = INKEY$
 LOCATE 27,6
-IF Sa242$=CHR$(13) THEN GOTO L210a
-IF LEN(Sa242$) = 0 THEN GOTO L20a1
+IF keyIn$=CHR$(13) THEN GOTO LCmdProc
+IF LEN(keyIn$) = 0 THEN GOTO LNoInput
 PRINT "                                     "
-L20a1:
-IF LEN(Sa242$) = 0 THEN GOTO L20c8
-Sa46e$ = Sa46e$ + Sa242$
-L20c8:
-IF Sa242$=CHR$(27) THEN END
+LNoInput:   ' LNoInput=L20a1
+IF LEN(keyIn$) = 0 THEN GOTO LInputEnd
+cmdBuf$ = cmdBuf$ + keyIn$
+LInputEnd:   ' LInputEnd=L20c8
+IF keyIn$=CHR$(27) THEN END
 LOCATE 27,6
-PRINT Sa46e$
-GOTO L1e78
+PRINT cmdBuf$
+GOTO LGameLoop
 
-L210a:		' Process the command
-IF Sa46e$="print" OR Sa46e$="PRINT" THEN GOTO L28d7
-IF Sa46e$="select" OR Sa46e$="SELECT" THEN GOTO L2276
-IF Sa46e$="send mail" OR Sa46e$="SEND MAIL" THEN GOTO L29bd
-IF Sa46e$="del *.*" OR Sa46e$="DEL *.*" THEN GOTO L2aa3
-IF Sa46e$="format c:" OR Sa46e$="FORMAT C:" THEN GOTO L2b8d
+LCmdProc:		' LCmdProc=L210a -- Process the command
+IF cmdBuf$="print" OR cmdBuf$="PRINT" THEN GOTO LCmdPrint
+IF cmdBuf$="select" OR cmdBuf$="SELECT" THEN GOTO LCmdSel
+IF cmdBuf$="send mail" OR cmdBuf$="SEND MAIL" THEN GOTO LCmdMail
+IF cmdBuf$="del *.*" OR cmdBuf$="DEL *.*" THEN GOTO LCmdDel
+IF cmdBuf$="format c:" OR cmdBuf$="FORMAT C:" THEN GOTO LCmdFmt
 LOCATE 27,6
 SOUND 200,4
-Sa46e$=""
+cmdBuf$=""
 COLOR 13
 PRINT "SYNTAX ERROR, YOU MORON!!!"
-GOSUB L2d76
-GOTO L1e78
+GOSUB LResetSel
+GOTO LGameLoop
 
 ' SELECT command
-L2276:
-Sa46e$=""
+LCmdSel:   ' LCmdSel=L2276
+cmdBuf$=""
 LOCATE 27,6
 PRINT "SELECT TARGET:"
-L22a5:
-FOR Fa476! = 1 TO 10
-Fa22e! = Fa246!(Fa476!,4)
-Fa232! = Fa246!(Fa476!,3)
-IF Fa246!(Fa476!,1) = 0 THEN GOSUB L3522
-NEXT Fa476!       
-Sa242$ = INKEY$
-IF Sa242$ = CHR$(13) THEN GOTO L23b5
-IF LEN(Sa242$)=0 THEN GOTO L2390
-Sa46e$ = Sa46e$ + Sa242$
-L2390:
+LSelLoop:   ' LSelLoop=L22a5
+FOR selI! = 1 TO 10
+drawX! = compStat!(selI!,4)
+drawY! = compStat!(selI!,3)
+IF compStat!(selI!,1) = 0 THEN GOSUB LAnimDmg
+NEXT selI!       
+keyIn$ = INKEY$
+IF keyIn$ = CHR$(13) THEN GOTO LSelParse
+IF LEN(keyIn$)=0 THEN GOTO LSelChk
+cmdBuf$ = cmdBuf$ + keyIn$
+LSelChk:   ' LSelChk=L2390
 LOCATE 27,21
-PRINT Sa46e$
-GOTO L22a5
-L23b5:	' ENTER pressed
-Fa472! = 0
-IF Sa46e$="lab" THEN Fa472! = 1
-IF Sa46e$="labstore" THEN Fa472! = 2
-IF Sa46e$="admin" THEN Fa472! = 3
-IF Sa46e$="Susi" THEN Fa472! = 4
-IF Sa46e$="Calvin" THEN Fa472! = 5
-IF Sa46e$="rabbit" THEN Fa472! = 6
-IF Sa46e$="library" THEN Fa472! = 7
-IF Sa46e$="ratt" THEN Fa472! = 8
-IF Sa46e$="Tfive" THEN Fa472! = 9
-IF Sa46e$="Hobbs" THEN Fa472! = 10
-IF Fa472! = 0 THEN SOUND 150,3
+PRINT cmdBuf$
+GOTO LSelLoop
+LSelParse:	' LSelParse=L23b5 -- ENTER pressed
+target! = 0
+IF cmdBuf$="lab" THEN target! = 1
+IF cmdBuf$="labstore" THEN target! = 2
+IF cmdBuf$="admin" THEN target! = 3
+IF cmdBuf$="Susi" THEN target! = 4
+IF cmdBuf$="Calvin" THEN target! = 5
+IF cmdBuf$="rabbit" THEN target! = 6
+IF cmdBuf$="library" THEN target! = 7
+IF cmdBuf$="ratt" THEN target! = 8
+IF cmdBuf$="Tfive" THEN target! = 9
+IF cmdBuf$="Hobbs" THEN target! = 10
+IF target! = 0 THEN SOUND 150,3
 LOCATE 27,6
 COLOR 13
-IF Fa246!(Fa472!,1) = 0 THEN GOTO L26a3
+IF compStat!(target!,1) = 0 THEN GOTO LSelDone
 ' Oops - logged into a down system
 SOUND 400,2
 SOUND 500,2
 SOUND 300,2
 SOUND 600,2
 PRINT "MORON!!  THAT COMPUTER IS CRASHED!!"
-GOSUB L3c57:GOSUB L3c57:GOSUB L3c57
+GOSUB LPause263a:GOSUB LPause263a:GOSUB LPause263a
 COLOR 10
 LOCATE 27,6
 PRINT "YOUR COMPUTER IS TEMPORARILY LOCKED"
@@ -447,19 +532,19 @@ LOCATE 27,6
 PRINT "                                     "
 SOUND 800,2
 SOUND 1000,2
-Sa46e$=""
-GOSUB L2d76
-GOTO L1e78
+cmdBuf$=""
+GOSUB LResetSel
+GOTO LGameLoop
 
-L26a3:
-IF Fa472! = 0 THEN PRINT "NO SUCH COMPUTER EXISTS, DIPSHIT!!"
-IF Fa472! = 0 THEN GOSUB L2d76
-IF Fa472! > 0 THEN PRINT "                                       "
+LSelDone:   ' LSelDone=L26a3
+IF target! = 0 THEN PRINT "NO SUCH COMPUTER EXISTS, DIPSHIT!!"
+IF target! = 0 THEN GOSUB LResetSel
+IF target! > 0 THEN PRINT "                                       "
 LOCATE 27,22
 PRINT "         ";
 COLOR 14
-Fa486! = Fa456! / 2500 + .07
-IF RND <= Fa486! THEN
+rejectP! = score! / 2500 + .07
+IF RND <= rejectP! THEN
 ' Reject randomly
 SOUND 100,2
 SOUND 400,2
@@ -468,78 +553,78 @@ SOUND 400,2
 LOCATE 27,6
 COLOR 14
 PRINT "  TARGET REJECTED BY NETWORK   "
-GOSUB L3c90
+GOSUB LPause263b
 LOCATE 27,6
 SOUND 1000,1
 PRINT "                             "
-GOSUB L3c90
+GOSUB LPause263b
 LOCATE 27,6
 SOUND 1000,1
 PRINT "  TARGET REJECTED BY NETWORK "
 LOCATE 27,6
 SOUND 1000,1
 PRINT "                             "
-Fa472! = 0
+target! = 0
 END IF
 LOCATE 27,22
-IF Fa472! > 0 THEN PRINT Sa46e$:ELSE PRINT "SKUA      "
-Sa46e$=""
-GOTO L1e78
+IF target! > 0 THEN PRINT cmdBuf$:ELSE PRINT "SKUA      "
+cmdBuf$=""
+GOTO LGameLoop
 
 ' PRINT command
-L28d7:
-IF Fa472!=0 THEN GOTO L902f
+LCmdPrint:   ' LCmdPrint=L28d7
+IF target!=0 THEN GOTO L902f
 RANDOMIZE TIMER
-IF RND > .24 AND Fa472! < 10 THEN GOSUB L42d5
-IF RND > .3 AND Fa472! = 10 THEN GOSUB L42d5
-GOSUB L2d76
-Sa46e$=""
+IF RND > .24 AND target! < 10 THEN GOSUB LAtkPJam
+IF RND > .3 AND target! = 10 THEN GOSUB LAtkPJam
+GOSUB LResetSel
+cmdBuf$=""
 LOCATE 27,6
 PRINT "                       "
-GOTO L1e78
+GOTO LGameLoop
 
 ' SEND MAIL command
-L29bd:
-IF Fa472! = 0 THEN GOTO L90ad
+LCmdMail:   ' LCmdMail=L29bd
+IF target! = 0 THEN GOTO L90ad
 RANDOMIZE TIMER
-IF RND > .12 AND Fa472! < 10 THEN GOSUB L3d3b
-IF RND > .2 AND Fa472! = 10 THEN GOSUB L3d3b
-GOSUB L2d76
-Sa46e$=""
+IF RND > .12 AND target! < 10 THEN GOSUB LAtkLock
+IF RND > .2 AND target! = 10 THEN GOSUB LAtkLock
+GOSUB LResetSel
+cmdBuf$=""
 LOCATE 27,5
 PRINT "                       "
-GOTO L1e78
+GOTO LGameLoop
 
 ' DEL command
-L2aa3:
-IF Fa472! = 0 THEN GOTO L90f7
+LCmdDel:   ' LCmdDel=L2aa3
+IF target! = 0 THEN GOTO L90f7
 RANDOMIZE TIMER
-IF Fa472! < 10 AND RND > .4 THEN GOSUB L5018
-IF Fa472! = 10 AND RND > .6 THEN GOSUB L5018
-GOSUB L2d76
-Sa46e$=""
+IF target! < 10 AND RND > .4 THEN GOSUB LAtkErase
+IF target! = 10 AND RND > .6 THEN GOSUB LAtkErase
+GOSUB LResetSel
+cmdBuf$=""
 LOCATE 27,6
 PRINT "                       "
-GOTO L1e78
+GOTO LGameLoop
 
 ' FORMAT command
-L2b8d:
-IF Fa472! = 0 THEN GOTO L9c28
+LCmdFmt:   ' LCmdFmt=L2b8d
+IF target! = 0 THEN GOTO L9c28
 RANDOMIZE TIMER
-IF Fa472! < 10 AND RND > .63 THEN GOSUB L56c4
-IF Fa472! = 10 AND RND > .8 THEN Fa48a!=1: ELSE Fa48a! = 0
-IF Fa472! = 10 AND Fa48a! = 1 THEN GOSUB L56c4
-IF Fa472! = 10 AND Fa48a! = 1 AND Fa456! > 400 THEN GOSUB L9170
-IF Fa472! = 10 AND Fa48a! = 1 AND Fa456! > 400 THEN GOTO Laba9
-GOSUB L2d76
-Sa46e$=""
+IF target! < 10 AND RND > .63 THEN GOSUB L56c4
+IF target! = 10 AND RND > .8 THEN hobbsFmt!=1: ELSE hobbsFmt! = 0
+IF target! = 10 AND hobbsFmt! = 1 THEN GOSUB L56c4
+IF target! = 10 AND hobbsFmt! = 1 AND score! > 400 THEN GOSUB L9170
+IF target! = 10 AND hobbsFmt! = 1 AND score! > 400 THEN GOTO Laba9
+GOSUB LResetSel
+cmdBuf$=""
 LOCATE 27,6
 PRINT "                       "
-GOTO L1e78
+GOTO LGameLoop
 
 ' Reset selection
-L2d76:
-Fa472! = 0
+LResetSel:   ' LResetSel=L2d76
+target! = 0
 LOCATE 27,22
 COLOR 14
 PRINT "SKUA     "
@@ -548,292 +633,293 @@ RETURN
 END
 
 ' Update displayed timer
-L2dbb:
-Fa462! = (Fa44a! - TIMER ) / 60
+LUpdTimer:   ' LUpdTimer=L2dbb
+minsLeft! = (gameEnd! - TIMER ) / 60
 COLOR 13
 LOCATE 29,46
-PRINT USING "#.##";Fa462!;
+PRINT USING "#.##";minsLeft!;
 COLOR 15
 RETURN
 
 ' Display a computer icon
-L2e2d:
+LDrawIcon:   ' LDrawIcon=L2e2d
 ' --- Monitor body and outline ---
-LINE (Fa22e!+1,Fa232!+(-4))-(Fa22e!+49,Fa232!+34),7,BF        ' Monitor body (gray fill)
-LINE (Fa22e!,Fa232!+(-5))-(Fa22e!+50,Fa232!+35),0,B            ' Monitor outline
+LINE (drawX!+1,drawY!+(-4))-(drawX!+49,drawY!+34),7,BF        ' Monitor body (gray fill)
+LINE (drawX!,drawY!+(-5))-(drawX!+50,drawY!+35),0,B            ' Monitor outline
 ' --- Base / stand ---
-LINE (Fa22e!+(-5),Fa232!+41)-(Fa22e!+55,Fa232!+60),0,B         ' Base outline  [FIXED: was +35]
-LINE (Fa22e!+(-4),Fa232!+42)-(Fa22e!+54,Fa232!+59),7,BF        ' Base fill (gray)
+LINE (drawX!+(-5),drawY!+41)-(drawX!+55,drawY!+60),0,B         ' Base outline  [FIXED: was +35]
+LINE (drawX!+(-4),drawY!+42)-(drawX!+54,drawY!+59),7,BF        ' Base fill (gray)
 ' --- Front panel detail ---
-LINE (Fa22e!+4,Fa232!+28)-(Fa22e!+12,Fa232!+31),0,B            ' Keyboard slot
-LINE (Fa22e!+(-1),Fa232!+47)-(Fa22e!+9,Fa232!+51),0,B          ' Drive bay outline
+LINE (drawX!+4,drawY!+28)-(drawX!+12,drawY!+31),0,B            ' Keyboard slot
+LINE (drawX!+(-1),drawY!+47)-(drawX!+9,drawY!+51),0,B          ' Drive bay outline
 ' --- Lower trim / floppy drive bay ---
-LINE (Fa22e!+15,Fa232!+35)-(Fa22e!+35,Fa232!+41),0,B           ' Drive bay frame outline
-LINE (Fa22e!+16,Fa232!+36)-(Fa22e!+34,Fa232!+40),7,BF          ' Drive bay frame fill (gray)
+LINE (drawX!+15,drawY!+35)-(drawX!+35,drawY!+41),0,B           ' Drive bay frame outline
+LINE (drawX!+16,drawY!+36)-(drawX!+34,drawY!+40),7,BF          ' Drive bay frame fill (gray)
 ' --- Power light box (right side of base) ---
-LINE (Fa22e!+47,Fa232!+48)-(Fa22e!+50,Fa232!+51),0,BF          ' Power light box
-PSET (Fa22e!+45,Fa232!+49),10                                   ' Power indicator (bright green)
+LINE (drawX!+47,drawY!+48)-(drawX!+50,drawY!+51),0,BF          ' Power light box
+PSET (drawX!+45,drawY!+49),10                                   ' Power indicator (bright green)
 ' --- Disk drive area ---
-LINE (Fa22e!+20,Fa232!+44)-(Fa22e!+42,Fa232!+57),8,BF          ' Drive area fill (dark gray)
-LINE (Fa22e!+19,Fa232!+43)-(Fa22e!+43,Fa232!+58),0,B           ' Drive area outline
-LINE (Fa22e!+23,Fa232!+47)-(Fa22e!+39,Fa232!+48),0,BF          ' Drive slot 1
-LINE (Fa22e!+26,Fa232!+51)-(Fa22e!+36,Fa232!+52),0,BF          ' Drive slot 2
+LINE (drawX!+20,drawY!+44)-(drawX!+42,drawY!+57),8,BF          ' Drive area fill (dark gray)
+LINE (drawX!+19,drawY!+43)-(drawX!+43,drawY!+58),0,B           ' Drive area outline
+LINE (drawX!+23,drawY!+47)-(drawX!+39,drawY!+48),0,BF          ' Drive slot 1
+LINE (drawX!+26,drawY!+51)-(drawX!+36,drawY!+52),0,BF          ' Drive slot 2
 ' --- Screen area ---
-LINE (Fa22e!+6,Fa232!)-(Fa22e!+44,Fa232!+24),Fa22a!,BF         ' Screen content (color=Fa22a!)
-LINE (Fa22e!+41,Fa232!+28)-(Fa22e!+44,Fa232!+31),0,BF          ' Screen indicator box
-PSET (Fa22e!+39,Fa232!+30),14                                   ' Screen indicator (yellow)
-LINE (Fa22e!+6,Fa232!)-(Fa22e!+44,Fa232!+24),0,B               ' Screen outline
+LINE (drawX!+6,drawY!)-(drawX!+44,drawY!+24),iconScr!,BF         ' Screen content (color=iconScr!)
+LINE (drawX!+41,drawY!+28)-(drawX!+44,drawY!+31),0,BF          ' Screen indicator box
+PSET (drawX!+39,drawY!+30),14                                   ' Screen indicator (yellow)
+LINE (drawX!+6,drawY!)-(drawX!+44,drawY!+24),0,B               ' Screen outline
 RETURN
 
 ' Animate computer screen / status display
-L3522:
+LAnimDmg:   ' LAnimDmg=L3522
 ' --- Redraw screen area with active colour (cyan = 9) ---
-LINE (Fa22e!+6,Fa232!)-(Fa22e!+44,Fa232!+24),9,BF           ' Screen fill (cyan)
-LINE (Fa22e!+41,Fa232!+28)-(Fa22e!+44,Fa232!+31),0,BF       ' Clear screen indicator box
-LINE (Fa22e!+6,Fa232!)-(Fa22e!+44,Fa232!+24),0,B             ' Screen outline
+LINE (drawX!+6,drawY!)-(drawX!+44,drawY!+24),9,BF           ' Screen fill (cyan)
+LINE (drawX!+41,drawY!+28)-(drawX!+44,drawY!+31),0,BF       ' Clear screen indicator box
+LINE (drawX!+6,drawY!)-(drawX!+44,drawY!+24),0,B             ' Screen outline
 ' --- Status pixel: flicker between dark grey (8) and yellow (14) ---
-IF RND(1) > 0.5 THEN Fa236! = 8 ELSE Fa236! = 14
-PSET (Fa22e!+36,Fa232!+54),Fa236!                            ' Activity indicator (drive area)
+IF RND(1) > 0.5 THEN drawClr! = 8 ELSE drawClr! = 14
+PSET (drawX!+36,drawY!+54),drawClr!                            ' Activity indicator (drive area)
 ' --- Scan-line animation: random-length white lines across screen ---
-Fa48e! = Fa232! + 21
-Fa226! = Fa232! + 3
-WHILE Fa226! <= Fa48e!
-    Fa492! = RND(1) * 32 + 9
-    LINE (Fa22e!+9,Fa226!)-(Fa22e!+Fa492!,Fa226!),15         ' White scan line
-    Fa226! = Fa226! + 2
+scanYBot! = drawY! + 21
+loopI! = drawY! + 3
+WHILE loopI! <= scanYBot!
+    loopJ! = RND(1) * 32 + 9
+    LINE (drawX!+9,loopI!)-(drawX!+loopJ!,loopI!),15         ' White scan line
+    loopI! = loopI! + 2
 WEND
 RETURN
 
 ' Al fixes a computer: alert tones, update damage counters, print score, redraw clean icon
-L376f:
+LAlFix:   ' LAlFix=L376f
 SOUND 800, 2                                           ' Alert beep (low tone)
 SOUND 1200, 3                                          ' Alert beep (high tone)
-Fa496! = Fa246!(INT(Fa46a!), 1)                        ' Read damage type of repaired computer
-IF Fa496! = 1 THEN Fa43e! = Fa43e! + 1                ' Tally damage-type 1 fix
-IF Fa496! = 2 THEN Fa442! = Fa442! + 1                ' Tally damage-type 2 fix
-IF Fa496! = 3 THEN Fa446! = Fa446! + 1                ' Tally damage-type 3 fix
-IF Fa496! = 4 THEN Fa43a! = Fa43a! + 1                ' Tally damage-type 4 fix
+dmgType! = compStat!(INT(alTarget!), 1)                        ' Read damage type of repaired computer
+IF dmgType! = 1 THEN alFixLock! = alFixLock! + 1                ' Tally damage-type 1 fix
+IF dmgType! = 2 THEN alFixEras! = alFixEras! + 1                ' Tally damage-type 2 fix
+IF dmgType! = 3 THEN alFixFmt! = alFixFmt! + 1                ' Tally damage-type 3 fix
+IF dmgType! = 4 THEN alFixPJam! = alFixPJam! + 1                ' Tally damage-type 4 fix
 ' Position at the row for this damage-type tally counter (rows 19-22 = types 1-4)
-IF Fa496! < 4 THEN
-    LOCATE INT(18 + Fa496!), 44
+IF dmgType! < 4 THEN
+    LOCATE INT(18 + dmgType!), 44
 ELSE
     LOCATE 18, 44
 END IF
 COLOR 13                                               ' Magenta text
-IF Fa496! = 1 THEN PRINT Fa43e!
-IF Fa496! = 2 THEN PRINT Fa442!
-IF Fa496! = 3 THEN PRINT Fa446!
-IF Fa496! = 4 THEN PRINT Fa43a!
-LOCATE INT(17 + Fa46a!), 68                            ' Move to OK label column (row = computer's row)
+IF dmgType! = 1 THEN PRINT alFixLock!
+IF dmgType! = 2 THEN PRINT alFixEras!
+IF dmgType! = 3 THEN PRINT alFixFmt!
+IF dmgType! = 4 THEN PRINT alFixPJam!
+LOCATE INT(17 + alTarget!), 68                            ' Move to OK label column (row = computer's row)
 COLOR 2                                                ' Green text
 PRINT "O.K.       "                                    ' Print OK confirmation
-Fa246!(INT(Fa46a!), 1) = 0                             ' Clear damage entry (0 = OK)
-GOSUB L3a10
+compStat!(INT(alTarget!), 1) = 0                             ' Clear damage entry (0 = OK)
+GOSUB LCalcScore
 GOSUB L637d                                            ' Al animation
-LINE (Fa22e!+(-5),Fa232!+(-5))-(Fa22e!+55,Fa232!+60),3,BF  ' Erase old icon
-GOSUB L2e2d                                            ' Redraw clean computer icon
+LINE (drawX!+(-5),drawY!+(-5))-(drawX!+55,drawY!+60),3,BF  ' Erase old icon
+GOSUB LDrawIcon                                            ' Redraw clean computer icon
 RETURN
 
 ' Recalculate total damage score and display it
-L3a10:
-Fa49a! = 0
-FOR Fa492! = 1 TO 9
-    IF Fa246!(Fa492!, 1) = 1 THEN Fa49a! = Fa49a! + 50
-    IF Fa246!(Fa492!, 1) = 2 THEN Fa49a! = Fa49a! + 100
-    IF Fa246!(Fa492!, 1) = 3 THEN Fa49a! = Fa49a! + 200
-    IF Fa246!(Fa492!, 1) = 4 THEN Fa49a! = Fa49a! + 60
-NEXT Fa492!
+LCalcScore:   ' LCalcScore=L3a10
+newScore! = 0
+FOR loopJ! = 1 TO 9
+    IF compStat!(loopJ!, 1) = 1 THEN newScore! = newScore! + 50
+    IF compStat!(loopJ!, 1) = 2 THEN newScore! = newScore! + 100
+    IF compStat!(loopJ!, 1) = 3 THEN newScore! = newScore! + 200
+    IF compStat!(loopJ!, 1) = 4 THEN newScore! = newScore! + 60
+NEXT loopJ!
 ' Hobbs (computer 10) scores at higher values
-IF Fa246!(10, 1) = 1 THEN Fa49a! = Fa49a! + 75
-IF Fa246!(10, 1) = 2 THEN Fa49a! = Fa49a! + 130
-IF Fa246!(10, 1) = 3 THEN Fa49a! = Fa49a! + 400
-IF Fa246!(10, 1) = 4 THEN Fa49a! = Fa49a! + 85
-IF Fa49a! < 0 THEN Fa49a! = 0
+IF compStat!(10, 1) = 1 THEN newScore! = newScore! + 75
+IF compStat!(10, 1) = 2 THEN newScore! = newScore! + 130
+IF compStat!(10, 1) = 3 THEN newScore! = newScore! + 400
+IF compStat!(10, 1) = 4 THEN newScore! = newScore! + 85
+IF newScore! < 0 THEN newScore! = 0
 LOCATE 29, 74
 COLOR 13                                               ' Magenta text
 PRINT "    ";
 LOCATE 29, 74
-PRINT Fa49a!;
-Fa456! = Fa49a!
+PRINT newScore!;
+score! = newScore!
 RETURN
 
 ' Delay ~0.263 s per call -- converted from calibrated FOR loop (F0046!=26405 iters on orig. hw)
-L3c57:
+LPause263a:   ' LPause263a=L3c57
 _DELAY 0.263
-' Same duration -- falls through from L3c57 or called directly as L3c90
-L3c90:
+' Same duration -- falls through from LPause263a or called directly as LPause263b
+LPause263b:   ' LPause263b=L3c90
 _DELAY 0.263
 RETURN
 
 ' Delay ~0.066 s per call -- converted from calibrated FOR loop (F004a!=6601 iters on orig. hw)
-L3cc9:
+LPause066a:   ' LPause066a=L3cc9
 _DELAY 0.066
-' Same duration -- falls through from L3cc9 or called directly as L3d02
-L3d02:
+' Same duration -- falls through from LPause066a or called directly as LPause066b
+LPause066b:   ' LPause066b=L3d02
 _DELAY 0.066
 RETURN
 ' Apply damage to target computer: update repair time, notify, animate (type 1)
-L3d3b:
-IF TIMER > Fa4ae! THEN Fa4ae! = TIMER
-Fa4ae! = Fa4ae! + 12 + RND(1) * 10                  ' Repair time: now + 12-22 s (random)
-Fa246!(INT(Fa472!), 2) = Fa4ae!                      ' Store repair time for target
-LOCATE INT(17 + Fa472!), 68
+LAtkLock:   ' LAtkLock=L3d3b
+IF TIMER > repairEnd! THEN repairEnd! = TIMER
+repairEnd! = repairEnd! + 12 + RND(1) * 10                  ' Repair time: now + 12-22 s (random)
+compStat!(INT(target!), 2) = repairEnd!                      ' Store repair time for target
+LOCATE INT(17 + target!), 68
 COLOR 14                                              ' Yellow text
 PRINT "LAN LOCKED "
-Fa246!(INT(Fa472!), 1) = 1                           ' Mark damage type 1
-GOSUB L3a10                                          ' Recalculate score
-Fa232! = Fa246!(INT(Fa472!), 3)                      ' Load target Y screen position
-Fa22e! = Fa246!(INT(Fa472!), 4)                      ' Load target X screen position
+compStat!(INT(target!), 1) = 1                           ' Mark damage type 1
+GOSUB LCalcScore                                          ' Recalculate score
+drawY! = compStat!(INT(target!), 3)                      ' Load target Y screen position
+drawX! = compStat!(INT(target!), 4)                      ' Load target X screen position
 ' Attack animation: 5-step flicker (black / white / black / white / yellow)
-LINE (Fa22e!+6, Fa232!)-(Fa22e!+44, Fa232!+24), 0, BF
+LINE (drawX!+6, drawY!)-(drawX!+44, drawY!+24), 0, BF
 SOUND 200, 3
-GOSUB L3cc9
-LINE (Fa22e!+6, Fa232!)-(Fa22e!+44, Fa232!+24), 15, BF
+GOSUB LPause066a
+LINE (drawX!+6, drawY!)-(drawX!+44, drawY!+24), 15, BF
 SOUND 200, 3
-GOSUB L3cc9
-LINE (Fa22e!+6, Fa232!)-(Fa22e!+44, Fa232!+24), 0, BF
+GOSUB LPause066a
+LINE (drawX!+6, drawY!)-(drawX!+44, drawY!+24), 0, BF
 SOUND 200, 3
-GOSUB L3cc9
-LINE (Fa22e!+6, Fa232!)-(Fa22e!+44, Fa232!+24), 15, BF
+GOSUB LPause066a
+LINE (drawX!+6, drawY!)-(drawX!+44, drawY!+24), 15, BF
 SOUND 200, 3
-GOSUB L3cc9
-LINE (Fa22e!+6, Fa232!)-(Fa22e!+44, Fa232!+24), 14, BF    ' Yellow: locked state
-GOSUB L3cc9
+GOSUB LPause066a
+LINE (drawX!+6, drawY!)-(drawX!+44, drawY!+24), 14, BF    ' Yellow: locked state
+GOSUB LPause066a
 ' Shrinking rectangle with descending tone (700 -> 160 Hz over 19 steps)
-FOR Fa492! = 0 TO 18
-    SOUND INT(700 - 30 * Fa492!), 1
-    LINE (Fa22e!+6+Fa492!, Fa232!+Fa492!/1.33)-(Fa22e!+44-Fa492!, Fa232!+24-Fa492!/1.33), 0, B
-NEXT Fa492!
+FOR loopJ! = 0 TO 18
+    SOUND INT(700 - 30 * loopJ!), 1
+    LINE (drawX!+6+loopJ!, drawY!+loopJ!/1.33)-(drawX!+44-loopJ!, drawY!+24-loopJ!/1.33), 0, B
+NEXT loopJ!
 ' Draw locked-state indicator on computer icon
-LINE (Fa22e!+21, Fa232!+4)-(Fa22e!+30, Fa232!+14), 13, B
-LINE (Fa22e!+21, Fa232!+8)-(Fa22e!+26, Fa232!+14), 0, B
-LINE (Fa22e!+26, Fa232!+14)-(Fa22e!+26, Fa232!+18), 13
-PSET (Fa22e!+26, Fa232!+21), 13
+LINE (drawX!+21, drawY!+4)-(drawX!+30, drawY!+14), 13, B
+LINE (drawX!+21, drawY!+8)-(drawX!+26, drawY!+14), 0, B
+LINE (drawX!+26, drawY!+14)-(drawX!+26, drawY!+18), 13
+PSET (drawX!+26, drawY!+21), 13
 SOUND 100, 12
 RETURN
 ' PRINTER JAM attack: type-4 damage, animates paper feeding then jamming
-L42d5:
-IF TIMER > Fa4ae! THEN Fa4ae! = TIMER
-Fa4ae! = Fa4ae! + 16 + RND(1) * 15                  ' Repair time: now + 16-31 s
-Fa246!(INT(Fa472!), 2) = Fa4ae!                      ' Store repair time for target
-LOCATE INT(17 + Fa472!), 68
+LAtkPJam:   ' LAtkPJam=L42d5
+IF TIMER > repairEnd! THEN repairEnd! = TIMER
+repairEnd! = repairEnd! + 16 + RND(1) * 15                  ' Repair time: now + 16-31 s
+compStat!(INT(target!), 2) = repairEnd!                      ' Store repair time for target
+LOCATE INT(17 + target!), 68
 COLOR 9                                               ' Cyan text
 PRINT "PRINTER JAM "
-Fa246!(INT(Fa472!), 1) = 4                           ' Damage type 4
-GOSUB L3a10                                          ' Recalculate score
-Fa232! = Fa246!(INT(Fa472!), 3)                      ' Load target Y screen position
-Fa22e! = Fa246!(INT(Fa472!), 4)                      ' Load target X screen position
+compStat!(INT(target!), 1) = 4                           ' Damage type 4
+GOSUB LCalcScore                                          ' Recalculate score
+drawY! = compStat!(INT(target!), 3)                      ' Load target Y screen position
+drawX! = compStat!(INT(target!), 4)                      ' Load target X screen position
 ' Draw printer icon
-LINE (Fa22e!-5, Fa232!-5)-(Fa22e!+55, Fa232!+60), 3, BF     ' Cyan body fill
-LINE (Fa22e!+3, Fa232!-4)-(Fa22e!+55, Fa232!+18), 0, B      ' Housing frame outline
-LINE (Fa22e!+4, Fa232!-3)-(Fa22e!+54, Fa232!+17), 7, BF     ' Grey top cover
-LINE (Fa22e!-5, Fa232!-3)-(Fa22e!-1, Fa232!+12), 0, BF      ' Paper feed slot (black)
-LINE (Fa22e!-4, Fa232!-2)-(Fa22e!-2, Fa232!+11), 8, BF      ' Slot depth (dark grey)
-LINE (Fa22e!-1, Fa232!)-(Fa22e!+3, Fa232!+9), 0, B          ' Paper guide (left edge)
-LINE (Fa22e!+6, Fa232!)-(Fa22e!+51, Fa232!+3), 0, BF        ' Output slot (top of body)
-GOSUB L3cc9
+LINE (drawX!-5, drawY!-5)-(drawX!+55, drawY!+60), 3, BF     ' Cyan body fill
+LINE (drawX!+3, drawY!-4)-(drawX!+55, drawY!+18), 0, B      ' Housing frame outline
+LINE (drawX!+4, drawY!-3)-(drawX!+54, drawY!+17), 7, BF     ' Grey top cover
+LINE (drawX!-5, drawY!-3)-(drawX!-1, drawY!+12), 0, BF      ' Paper feed slot (black)
+LINE (drawX!-4, drawY!-2)-(drawX!-2, drawY!+11), 8, BF      ' Slot depth (dark grey)
+LINE (drawX!-1, drawY!)-(drawX!+3, drawY!+9), 0, B          ' Paper guide (left edge)
+LINE (drawX!+6, drawY!)-(drawX!+51, drawY!+3), 0, BF        ' Output slot (top of body)
+GOSUB LPause066a
 ' Paper frame 1 (y=2..12): blank sheet appears
-LINE (Fa22e!+8, Fa232!+2)-(Fa22e!+49, Fa232!+12), 0, B      ' Paper outline
-LINE (Fa22e!+9, Fa232!+2)-(Fa22e!+48, Fa232!+11), 15, BF    ' Paper fill (white)
-GOSUB L3cc9
-FOR Fa496! = 3 TO 9 STEP 2
-    Fa4b2! = RND(1) * 35 + 10
-    LINE (Fa22e!+10, Fa232!+Fa496!)-(Fa22e!+Fa4b2!, Fa232!+Fa496!), 0
-NEXT Fa496!
+LINE (drawX!+8, drawY!+2)-(drawX!+49, drawY!+12), 0, B      ' Paper outline
+LINE (drawX!+9, drawY!+2)-(drawX!+48, drawY!+11), 15, BF    ' Paper fill (white)
+GOSUB LPause066a
+' NOTE: dmgType! (=Fa496!) reused as paper-scan Y and loop variable below -- not damage type here
+FOR dmgType! = 3 TO 9 STEP 2
+    paperLen! = RND(1) * 35 + 10
+    LINE (drawX!+10, drawY!+dmgType!)-(drawX!+paperLen!, drawY!+dmgType!), 0
+NEXT dmgType!
 SOUND 200, 1
 ' Paper frame 2 (y=12..22)
-LINE (Fa22e!+8, Fa232!+12)-(Fa22e!+49, Fa232!+22), 0, B
-LINE (Fa22e!+9, Fa232!+12)-(Fa22e!+48, Fa232!+21), 15, BF
-GOSUB L3cc9
-FOR Fa496! = 11 TO 19 STEP 2
-    Fa4b2! = RND(1) * 35 + 10
-    LINE (Fa22e!+10, Fa232!+Fa496!)-(Fa22e!+Fa4b2!, Fa232!+Fa496!), 0
-NEXT Fa496!
+LINE (drawX!+8, drawY!+12)-(drawX!+49, drawY!+22), 0, B
+LINE (drawX!+9, drawY!+12)-(drawX!+48, drawY!+21), 15, BF
+GOSUB LPause066a
+FOR dmgType! = 11 TO 19 STEP 2
+    paperLen! = RND(1) * 35 + 10
+    LINE (drawX!+10, drawY!+dmgType!)-(drawX!+paperLen!, drawY!+dmgType!), 0
+NEXT dmgType!
 SOUND 200, 1
 ' Paper frame 3 (y=22..30)
-LINE (Fa22e!+8, Fa232!+23)-(Fa22e!+49, Fa232!+30), 0, B
-LINE (Fa22e!+9, Fa232!+22)-(Fa22e!+48, Fa232!+29), 15, BF
-GOSUB L3cc9
-FOR Fa496! = 21 TO 30 STEP 2
-    Fa4b2! = RND(1) * 35 + 10
-    LINE (Fa22e!+10, Fa232!+Fa496!)-(Fa22e!+Fa4b2!, Fa232!+Fa496!), 0
-NEXT Fa496!
+LINE (drawX!+8, drawY!+23)-(drawX!+49, drawY!+30), 0, B
+LINE (drawX!+9, drawY!+22)-(drawX!+48, drawY!+29), 15, BF
+GOSUB LPause066a
+FOR dmgType! = 21 TO 30 STEP 2
+    paperLen! = RND(1) * 35 + 10
+    LINE (drawX!+10, drawY!+dmgType!)-(drawX!+paperLen!, drawY!+dmgType!), 0
+NEXT dmgType!
 SOUND 200, 1
 ' Paper frame 4 (y=30..36)
-LINE (Fa22e!+8, Fa232!+30)-(Fa22e!+49, Fa232!+36), 0, B
-LINE (Fa22e!+9, Fa232!+30)-(Fa22e!+48, Fa232!+35), 15, BF
-GOSUB L3cc9
-FOR Fa496! = 31 TO 35 STEP 2
-    Fa4b2! = RND(1) * 35 + 10
-    LINE (Fa22e!+10, Fa232!+Fa496!)-(Fa22e!+Fa4b2!, Fa232!+Fa496!), 0
-NEXT Fa496!
+LINE (drawX!+8, drawY!+30)-(drawX!+49, drawY!+36), 0, B
+LINE (drawX!+9, drawY!+30)-(drawX!+48, drawY!+35), 15, BF
+GOSUB LPause066a
+FOR dmgType! = 31 TO 35 STEP 2
+    paperLen! = RND(1) * 35 + 10
+    LINE (drawX!+10, drawY!+dmgType!)-(drawX!+paperLen!, drawY!+dmgType!), 0
+NEXT dmgType!
 SOUND 200, 1
 ' Paper frame 5 (y=36..random): variable-length jammed page
-Fa4b6! = RND(1) * 23 + 37
-LINE (Fa22e!+8, Fa232!+36)-(Fa22e!+49, Fa232!+Fa4b6!+1), 0, B
-LINE (Fa22e!+9, Fa232!+36)-(Fa22e!+48, Fa232!+Fa4b6!), 15, BF
-GOSUB L3cc9
-Fa4ba! = Fa4b6! - 1
-Fa496! = 37
-WHILE Fa496! <= Fa4ba!
-    Fa4b2! = RND(1) * 35 + 10
-    LINE (Fa22e!+10, Fa232!+Fa496!)-(Fa22e!+Fa4b2!, Fa232!+Fa496!), 0
-    Fa496! = Fa496! + 2
+jamH! = RND(1) * 23 + 37
+LINE (drawX!+8, drawY!+36)-(drawX!+49, drawY!+jamH!+1), 0, B
+LINE (drawX!+9, drawY!+36)-(drawX!+48, drawY!+jamH!), 15, BF
+GOSUB LPause066a
+jamLim! = jamH! - 1
+dmgType! = 37
+WHILE dmgType! <= jamLim!
+    paperLen! = RND(1) * 35 + 10
+    LINE (drawX!+10, drawY!+dmgType!)-(drawX!+paperLen!, drawY!+dmgType!), 0
+    dmgType! = dmgType! + 2
 WEND
 SOUND 200, 1
 ' Descending alarm cascade: 700 Hz down to 100 Hz in -50 steps
-FOR Fa496! = 700 TO 100 STEP -50
-    SOUND INT(Fa496!), 1
-NEXT Fa496!
+FOR dmgType! = 700 TO 100 STEP -50
+    SOUND INT(dmgType!), 1
+NEXT dmgType!
 ' Jammed paper chaos: 30 random paper scrawls with creaking sound
-FOR Fa496! = 1 TO 30
-    Fa4b2! = RND(1) * 35 + 10
-    Fa482! = RND(1) * 20 + 3
-    LINE (Fa22e!+10, Fa232!+Fa482!)-(Fa22e!+Fa4b2!, Fa232!+Fa482!), 0
+FOR dmgType! = 1 TO 30
+    paperLen! = RND(1) * 35 + 10
+    chaosY! = RND(1) * 20 + 3
+    LINE (drawX!+10, drawY!+chaosY!)-(drawX!+paperLen!, drawY!+chaosY!), 0
     SOUND 130, 1
-NEXT Fa496!
+NEXT dmgType!
 RETURN
 ' ERASED attack: type-2 damage, flicker animation then red X painted across icon
-L5018:
-IF TIMER > Fa4ae! THEN Fa4ae! = TIMER
-Fa4ae! = Fa4ae! + 30 + RND(1) * 15               ' Repair time: now + 30-45 s
-Fa246!(INT(Fa472!), 2) = Fa4ae!                   ' Store repair time for target
-Fa246!(INT(Fa472!), 1) = 2                        ' Damage type 2 (ERASED)
-GOSUB L3a10                                        ' Recalculate score
-LOCATE INT(17 + Fa472!), 68
+LAtkErase:   ' LAtkErase=L5018
+IF TIMER > repairEnd! THEN repairEnd! = TIMER
+repairEnd! = repairEnd! + 30 + RND(1) * 15               ' Repair time: now + 30-45 s
+compStat!(INT(target!), 2) = repairEnd!                   ' Store repair time for target
+compStat!(INT(target!), 1) = 2                        ' Damage type 2 (ERASED)
+GOSUB LCalcScore                                        ' Recalculate score
+LOCATE INT(17 + target!), 68
 COLOR 12                                              ' Light-red text
 PRINT "ERASED     "
-Fa232! = Fa246!(INT(Fa472!), 3)                   ' Load target Y screen position
-Fa22e! = Fa246!(INT(Fa472!), 4)                   ' Load target X screen position
-' Flicker animation: 4 black/white cycles (L3c90 = 0.263 s each)
-LINE (Fa22e!+6, Fa232!)-(Fa22e!+44, Fa232!+24), 0, BF
+drawY! = compStat!(INT(target!), 3)                   ' Load target Y screen position
+drawX! = compStat!(INT(target!), 4)                   ' Load target X screen position
+' Flicker animation: 4 black/white cycles (LPause263b = 0.263 s each)
+LINE (drawX!+6, drawY!)-(drawX!+44, drawY!+24), 0, BF
 SOUND 200, 3
-GOSUB L3c90
-LINE (Fa22e!+6, Fa232!)-(Fa22e!+44, Fa232!+24), 15, BF
+GOSUB LPause263b
+LINE (drawX!+6, drawY!)-(drawX!+44, drawY!+24), 15, BF
 SOUND 200, 3
-GOSUB L3c90
-LINE (Fa22e!+6, Fa232!)-(Fa22e!+44, Fa232!+24), 0, BF
+GOSUB LPause263b
+LINE (drawX!+6, drawY!)-(drawX!+44, drawY!+24), 0, BF
 SOUND 200, 3
-GOSUB L3c90
-LINE (Fa22e!+6, Fa232!)-(Fa22e!+44, Fa232!+24), 15, BF
+GOSUB LPause263b
+LINE (drawX!+6, drawY!)-(drawX!+44, drawY!+24), 15, BF
 SOUND 200, 3
-GOSUB L3c90
+GOSUB LPause263b
 ' 5th step: final black fill + long low-tone SOUND (no _DELAY -- SOUND itself blocks)
-LINE (Fa22e!+6, Fa232!)-(Fa22e!+44, Fa232!+24), 0, BF
+LINE (drawX!+6, drawY!)-(drawX!+44, drawY!+24), 0, BF
 SOUND 100, 12
 ' Draw red X over icon: two crossing diagonal bands (color 4 = red)
 ' First arm: upper-left to lower-right
-LINE (Fa22e!, Fa232!-5)-(Fa22e!-5, Fa232!), 4
-LINE (Fa22e!-5, Fa232!)-(Fa22e!+50, Fa232!+60), 4
-LINE (Fa22e!+50, Fa232!+60)-(Fa22e!+55, Fa232!+55), 4
-LINE (Fa22e!+55, Fa232!+55)-(Fa22e!, Fa232!-5), 4
-PAINT (Fa22e!, Fa232!), 4, 4
+LINE (drawX!, drawY!-5)-(drawX!-5, drawY!), 4
+LINE (drawX!-5, drawY!)-(drawX!+50, drawY!+60), 4
+LINE (drawX!+50, drawY!+60)-(drawX!+55, drawY!+55), 4
+LINE (drawX!+55, drawY!+55)-(drawX!, drawY!-5), 4
+PAINT (drawX!, drawY!), 4, 4
 ' Second arm: upper-right to lower-left
-LINE (Fa22e!+50, Fa232!-5)-(Fa22e!+55, Fa232!), 4
-LINE (Fa22e!+55, Fa232!)-(Fa22e!, Fa232!+60), 4
-LINE (Fa22e!-5, Fa232!+55)-(Fa22e!+50, Fa232!-5), 4
-PAINT (Fa22e!, Fa232!+55), 4, 4
-PAINT (Fa22e!+50, Fa232!), 4, 4
+LINE (drawX!+50, drawY!-5)-(drawX!+55, drawY!), 4
+LINE (drawX!+55, drawY!)-(drawX!, drawY!+60), 4
+LINE (drawX!-5, drawY!+55)-(drawX!+50, drawY!-5), 4
+PAINT (drawX!, drawY!+55), 4, 4
+PAINT (drawX!+50, drawY!), 4, 4
 RETURN
                              **************************************************************
                              *                          FUNCTION                          *
