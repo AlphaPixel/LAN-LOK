@@ -1,6 +1,6 @@
 ﻿DIM Fa246!(10,5)
 
-' Calibration block removed â€” QB64 runs too fast for the original timing loop.
+' Calibration block removed -- QB64 runs too fast for the original timing loop.
 ' Original: 37700 iterations measured with TIMER to scale F0042!/F0046!/F004a!.
 ' All delay loops are now _DELAY with pre-computed wall-clock durations (see CLAUDE.md).
 
@@ -442,7 +442,7 @@ GOSUB L3c57:GOSUB L3c57:GOSUB L3c57
 COLOR 10
 LOCATE 27,6
 PRINT "YOUR COMPUTER IS TEMPORARILY LOCKED"
-_DELAY (RND(1) + 1) * 13.132  ' lockout 13â€“26 s (orig: (RND*500000+500000)*F0042! iters)
+_DELAY (RND(1) + 1) * 13.132  ' lockout 13--26 s (orig: (RND*500000+500000)*F0042! iters)
 LOCATE 27,6
 PRINT "                                     "
 SOUND 800,2
@@ -657,18 +657,18 @@ PRINT Fa49a!;
 Fa456! = Fa49a!
 RETURN
 
-' Delay â‰ˆ 0.263 s per call â€” converted from calibrated FOR loop (F0046!=26405 iters on orig. hw)
+' Delay ~0.263 s per call -- converted from calibrated FOR loop (F0046!=26405 iters on orig. hw)
 L3c57:
 _DELAY 0.263
-' Same duration â€” falls through from L3c57 or called directly as L3c90
+' Same duration -- falls through from L3c57 or called directly as L3c90
 L3c90:
 _DELAY 0.263
 RETURN
 
-' Delay â‰ˆ 0.066 s per call â€” converted from calibrated FOR loop (F004a!=6601 iters on orig. hw)
+' Delay ~0.066 s per call -- converted from calibrated FOR loop (F004a!=6601 iters on orig. hw)
 L3cc9:
 _DELAY 0.066
-' Same duration â€” falls through from L3cc9 or called directly as L3d02
+' Same duration -- falls through from L3cc9 or called directly as L3d02
 L3d02:
 _DELAY 0.066
 RETURN
@@ -699,7 +699,7 @@ SOUND 200, 3
 GOSUB L3cc9
 LINE (Fa22e!+6, Fa232!)-(Fa22e!+44, Fa232!+24), 14, BF    ' Yellow: locked state
 GOSUB L3cc9
-' Shrinking rectangle with descending tone (700 → 160 Hz over 19 steps)
+' Shrinking rectangle with descending tone (700 -> 160 Hz over 19 steps)
 FOR Fa492! = 0 TO 18
     SOUND INT(700 - 30 * Fa492!), 1
     LINE (Fa22e!+6+Fa492!, Fa232!+Fa492!/1.33)-(Fa22e!+44-Fa492!, Fa232!+24-Fa492!/1.33), 0, B

@@ -37,6 +37,23 @@ Then translate the ASM to BASIC and replace the raw ASM lines in `lanlokre.bas`.
 
 ## Key Conventions
 
+### ⚠️ ASCII-Only Comments in `lanlokre.bas`
+
+**All comments in `lanlokre.bas` must use plain ASCII characters only.**
+Non-ASCII Unicode (e.g. `≈`, `—`, `→`) renders as mojibake (`â‰ˆ`, `â€"`, `â†'`) in
+Notepad++ and the GitHub web UI when those tools assume Windows-1252/Latin-1 encoding.
+
+Use these ASCII substitutes in comments (never the Unicode originals):
+
+| Avoid | Use instead |
+|-------|-------------|
+| `—` (em dash, U+2014) | `--` |
+| `≈` (almost equal, U+2248) | `~` |
+| `→` (right arrow, U+2192) | `->` |
+| Any other non-ASCII | Plain ASCII equivalent |
+
+This rule applies only to `lanlokre.bas` comments. Markdown files (`.md`) may use Unicode freely.
+
 ### File Structure of `lanlokre.bas`
 - Lines starting with `       01a2:` are **raw ASM** — not yet decompiled
 - Lines that look like BASIC are **done**
