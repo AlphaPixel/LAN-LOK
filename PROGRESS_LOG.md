@@ -6,6 +6,67 @@ and what changed in the repo.
 
 ---
 
+## Session 13 — 2026-05-28 (LAtkFmt: FORMAT C: attack, damage type 3)
+
+### What was done
+Decompiled `FUN_01a2_56c4` = `LAtkFmt` — the FORMAT C: (damage type 3) attack routine.
+1,353 raw ASM lines replaced with 81 lines of BASIC.
+
+Raw ASM count: 11,207 → 9,965 (−1,242 ASM lines).
+
+### New variables added to glossary
+| New name | Old name | Description |
+|----------|----------|-------------|
+| `circR!` | `Fa4be!` | Circle color/radius param passed to FUN_01a2_61cb (0=black, 14=visible) |
+| `fmtBarH!` | `Fa4c2!` | FORMAT C: random top-y of green scan bar (= 59 − RND(1)*8) |
+
+### New label added to glossary
+| New label | Old label | Description |
+|-----------|-----------|-------------|
+| `LAtkFmt` | `L56c4` | FORMAT C: attack entry point (damage type 3) |
+
+### Structure of LAtkFmt
+1. **Preamble**: `IF TIMER > repairEnd! THEN repairEnd! = TIMER`; `repairEnd! += 37 + RND*20`;
+   `compStat!(target,2)=repairEnd!`; `compStat!(target,1)=3`; `GOSUB LCalcScore`
+2. **Header text**: `LOCATE INT(17+target!), 68`; `COLOR 13`; `PRINT "REFORMATTED"`
+3. **Load coords + draw**: `drawY!/drawX!` from compStat! cols 3/4; `GOSUB LDrawIcon`; `GOSUB LPause066a`
+4. **3 concentric black circles** at center (drawX!+25, drawY!+27), radii 30/18/6, color 0;
+   `SOUND 700,1` and `GOSUB LPause066a` after each
+5. **Crosshair lines** (black): vertical (x+25,y-4)→(x+25,y+59); horizontal (x-5,y+27)→(x+55,y+27);
+   `SOUND 700,1`; `GOSUB LPause263b`
+6. **Shrink loop** (dmgType! 1→6): `circR!=14` → `GOSUB L61cb` → `SOUND 1200,1`;
+   `circR!=0` → `GOSUB L61cb` → `SOUND 900,1`; then final `circR!=14` pass + LPause066b + LPause263a
+7. **Flash loop** (dmgType! 1→5): `LINE BF yellow(14)` → `GOSUB LDrawIcon` → `SOUND 500,1`;
+   `LINE BF magenta(5)` → `GOSUB LDrawIcon` → `SOUND 900,1`
+8. **Black erase fill**: `LINE BF color 0`; `GOSUB LPause263b`
+9. **White cross**: `LINE BF white(15)` (x+15,y)→(x+35,y+58); `LINE BF white(15)` (x,y+10)→(x+50,y+30)
+10. **Green format-scan** (`FOR loopK!=-4 TO 54`): `fmtBarH!=59-RND*8`;
+    `LINE (x+loopK!,y+59)→(x+loopK!,y+fmtBarH!),2`
+11. **Damage indicator marker**: 7 LINEs (mix of plain/B) + 3 PSETs forming a floppy-slot pattern
+
+### Key discoveries
+- **CIRCLE calling convention** confirmed: center set by setpt1 before call; CIRCLE receives
+  (radius as 4-byte float, color as int); → `CIRCLE (cx,cy), radius, color` in BASIC
+- **circR!** (Fa4be!) serves dual role: color parameter for initial circles AND radius/mode parameter
+  for the undecompiled FUN_01a2_61cb animator; L61cb reads it directly from memory at [0xa4be]
+- **dmgType! triply-reused** in this function: shrink loop counter, flash loop counter, original
+  purpose (damage type 3 stored via literal constant 3.0, not through dmgType! variable)
+- **loopK! = F003a!** used as the format-scan column variable (same as calibration loop legacy var)
+- **fmtBarH! = 59 − RND(1)*8**: uses FSUBP (ST(1)−ST(0)) pattern after FLD 59 + RND*8 on FP stack
+- **Repair time**: 37 + RND(1)*20 s = 37–57 s (vs. L3d3b=12–22 s, L5018=30–45 s, L42d5=30–67 s)
+- **Text COLOR 13** (magenta) for "REFORMATTED" display
+- **FUN_01a2_61cb** (L61cb) remains undecompiled; called as `GOSUB L61cb` with circR! pre-set;
+  this is the concentric-circle shrink/expand animator
+- **White cross shape** (two overlapping BF rectangles) is the FORMAT damage status indicator,
+  replacing the normal screen content after the animation
+
+### Files changed
+- `lanlokre.bas`: LAtkFmt BASIC splice + 2 new glossary vars + 1 new label
+- `PROGRESS_LOG.md`: this entry
+- `CLAUDE.local.md`: session log updated
+
+---
+
 ## Session 12 — 2026-05-28 (Semantic Symbol Renaming)
 
 ### What was done

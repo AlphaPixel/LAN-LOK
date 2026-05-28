@@ -13,6 +13,22 @@ Update this file at the end of each work session.
 
 ## Session Log
 
+### 2026-05-28 — Decompilation Session 13: LAtkFmt (FORMAT C: attack, damage type 3)
+- Completed `FUN_01a2_56c4` = LAtkFmt -- the FORMAT C: (damage type 3) attack routine
+- 1,353 raw ASM lines replaced with 81 lines of BASIC
+- Raw ASM count: 11,207 -> 9,965 (-1,242 ASM lines)
+- New variables: circR!=Fa4be! (circle color/radius param), fmtBarH!=Fa4c2! (scan bar height)
+- New label: LAtkFmt=L56c4
+- Structure: preamble -> PRINT "REFORMATTED" -> LDrawIcon -> 3 black circles (radii 30/18/6)
+  -> black crosshair lines -> shrink loop (6x: circR!=14/0 -> GOSUB L61cb -> SOUND 1200/900)
+  -> flash loop (5x: yellow BF + LDrawIcon + magenta BF + LDrawIcon) -> black erase fill
+  -> white cross (two BF rects) -> green scan sweep (-4 to +54) -> 13 indicator LINE/PSETs
+- FUN_01a2_61cb (L61cb) remains undecompiled -- called with circR! pre-set, kept as GOSUB L61cb
+- CIRCLE calling convention confirmed: setpt1 sets center, then CIRCLE(radius_float, color_int)
+- Repair time: 37+RND*20 s = 37-57 s
+- dmgType! reused 3 ways: shrink loop counter, flash loop counter, damage type constant via 3.0 literal
+- **Next target:** FUN_01a2_61cb (L61cb) -- the circle animator called from LAtkFmt
+
 ### 2026-05-28 — Refactoring Session 12: Semantic symbol renaming
 - Renamed 35 float/string variables and 32 subroutine labels in decompiled BASIC section
 - Key renames: Fa22e!/Fa232! -> drawX!/drawY!, Fa472! -> target!, Fa456! -> score!,
