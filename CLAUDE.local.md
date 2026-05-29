@@ -13,6 +13,30 @@ Update this file at the end of each work session.
 
 ## Session Log
 
+### 2026-05-29 — Decompilation Session 17: LLossScreen / LGameEnd / LFinalTally (loss screen + game-over + tally)
+- Completed `FUN_01a2_9c28` = LLossScreen/LGameEnd/LGameOver/LTooFewPoints/LNotEnoughPts/LYouLose/LFinalTally
+- 2,115 raw ASM lines (01a2:9c28-ae3a) replaced with 263 lines of BASIC
+- Raw ASM count: 3,453 -> 1,520 (-1,933 ASM lines); 36.5% -> 56.1% BASIC done
+- New labels: LLossScreen=L9c28, LGameEnd=La58f, LGameOver=La5e0, LTooFewPoints=La7db,
+  LNotEnoughPts=La7f1, LYouLose=La980, LFinalTally=Laba9
+- New variables (glossary updated): Fa44e! (victory flag), Fa452! (penalty flag), Fa4d2! (column offset),
+  Fa4da! (high score), Fa4de! (game count), Fa4e2! (running avg), Fa4e6! (compStat! reset iterator)
+- Structure: FORMAT C: SKUA figure (21 LINEs) + dialog + expanding CIRCLE rings + crosshair
+  + bullseye flash loop (5x circR!=12/14) + descending alarm (1000->100 STEP -50)
+  + SCREEN 12 reinit color flash sequence + text messages ("You stupid SHIT!!" etc.)
+  + Fa4d2!=15 + Fa452!=1 -> LGameEnd -> IF score!>1000: LVictory + Fa44e!=1 ELSE LGameOver
+  -> GAME OVER 4-color flash -> IF score!<60: LTooFewPoints ELSE LFinalTally
+  -> NOT ENOUGH POINTS flash x3 (if subsequent game) -> YOU LOSE WEENIE flash x4
+  -> LFinalTally: score bonuses/penalties, running average, GOSUB Lb207/Lb029/Lbca2, compStat! reset, GOTO L01a3
+- Key discoveries:
+  - DS:0xb7a0 = 1000.0: both victory threshold AND descending alarm start freq (confirmed via byte read)
+  - SCREEN 12 reinit trick: calling SCREEN 12 while in mode 12 clears screen (flash effect)
+  - Fa44e! = victory flag, Fa452! = penalty flag (both were "unknown" since session 12, now confirmed)
+  - LLossScreen is non-returning: entered via CALL but ends GOTO L01a3 (return address never used)
+  - GAME OVER column offset: Fa4d2!=15 gives col=INT(6+15)=21 (first game), 0 gives col=6 (subsequent)
+  - Glossary updated to remove "(kept -- purpose unknown)" notes for Fa44e! and Fa452!
+- **Next target:** `FUN_01a2_ae3d` at lanlokre.bas line 1615, address 01a2:ae3d
+
 ### 2026-05-28 — Decompilation Session 16: LVictory (victory screen)
 - Completed `FUN_01a2_9170` = LVictory -- full victory screen (01a2:9170-9ae6)
 - ~893 raw ASM lines replaced with 102 lines of BASIC
@@ -242,16 +266,18 @@ Update this file at the end of each work session.
 
 ## Current Work State
 
-**Next target:** `FUN_01a2_9ae7` at lanlokre.bas line 1334, address 01a2:9ae7.
-Run: `.\tools\extract_fn.ps1 -Address 9ae7`
+**Next target:** `FUN_01a2_ae3d` at lanlokre.bas line 1615, address 01a2:ae3d.
+Run: `.\tools\extract_fn.ps1 -Address ae3d`
 
-**Progress after session 16 — LVictory (2026-05-28):**
-- Raw ASM lines in lanlokre.bas: 3,453 (63.5% remaining)
-- BASIC done: 1,989 lines (36.5%)
+**Progress after session 17 — LLossScreen (2026-05-29):**
+- Raw ASM lines in lanlokre.bas: 1,520 (43.9% remaining)
+- BASIC done: 1,939 lines (56.1%)
 - Functions completed: L2e2d, L3522, L376f, L3a10, L3c57, L3c90, L3cc9, L3d02,
   L3d3b/422d/4246, L42d5, L5018/50b2/5124, L56c4/LAtkFmt, L637d/LAlAnim,
-  L902f/LSelfPJam, L90ad/LSelfLock, L90f7/LSelfErase, L9170/LVictory
-- Notable stubs: L61cb (LCircXhair, called from LAtkFmt), Lbab9 (LRepairUI), Lbca2 (end-of-game)
+  L902f/LSelfPJam, L90ad/LSelfLock, L90f7/LSelfErase, L9170/LVictory,
+  L9ae7/LTargetXhair (prev session), L9c28/LLossScreen+LGameEnd+LGameOver+LFinalTally
+- Notable stubs: L61cb (LCircXhair, called from LAtkFmt), Lbab9 (LRepairUI), Lbca2 (end-of-game),
+  Lb029 (display end screen), Lb207 (display score table)
 
 **Baseline (before any decompilation work):**
 - Raw ASM lines: 15,456 (86.1%)
@@ -383,6 +409,7 @@ See WORK_PLAN.md for the full constant lookup table. Key:
 - [ ] What is `FUN_01a2_19e9`? (appears right before `FUN_01a2_19fa`)
 - [ ] What does `FUN_01a2_61cb` do? (large function at line 12237 of ASM)
 - [ ] Verify column mapping of `Fa246!(i,j)` — especially cols 1, 2, 5
-- [ ] Confirm `FUN_01a2_9ae7` vs `FUN_01a2_9c28` — which is the main loss path?
+- [x] Confirm `FUN_01a2_9ae7` vs `FUN_01a2_9c28`: 9ae7=LTargetXhair (bullseye draw), 9c28=LLossScreen
+- [x] Fa44e! and Fa452! purpose confirmed (session 17): victory flag and penalty flag respectively
 - [ ] Does the game use any self-modifying code or INT calls beyond timer/FP emulation?
 - [ ] What string is at DS:0xa4ca? (used in a PRINT call near end of ENTRY)

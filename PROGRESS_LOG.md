@@ -6,6 +6,123 @@ and what changed in the repo.
 
 ---
 
+## Session 17 — 2026-05-29 (LLossScreen / LGameEnd / LFinalTally: loss + game-over + tally)
+
+### What was done
+Decompiled `FUN_01a2_9c28` — the FORMAT C: self-attack sequence plus the complete game-over,
+score-tally, and restart flow. This is the largest single function remaining after LAlAnim:
+2,115 raw ASM lines (address range 01a2:9c28–01a2:ae3a) replaced with 263 lines of BASIC.
+
+Raw ASM count: 3,453 → 1,520 (−1,933 ASM lines).
+Total lines: 5,311 → 3,459 (net −1,852 due to line-count difference new vs. old).
+BASIC fraction: 36.5% → 56.1%.
+
+### Structure of FUN_01a2_9c28
+
+The function has four distinct entry points, all non-returning (end with GOTO L01a3):
+
+**LLossScreen (9c28)** — entered by CALL from game loop when player types `FORMAT C:` targeting
+their own machine (SKUA):
+- Full-screen SCREEN 12 / CLS 0 / cyan BF background
+- 21 LINE calls drawing SKUA computer figure (monitor, keyboard body, slots, LEDs)
+- COLOR 7 text: "Hi! My name is SKUA" / "> format c:" / "Oh, no......"
+- 3 concentric CIRCLE pairs (radii 220/221, 120/121, 40/41) expanding inward with dialog:
+  "My mind is going....." / "I can feel it......"
+- Crosshair lines through (320,240): vertical (y 20–460) and horizontal (x 100–540)
+- FOR loop 5 iterations: PRINT "aaa"; + GOSUB LTargetXhair (circR!=12 red / 14 yellow) + sounds
+- PRINT "rrrrgh!!!" + final LTargetXhair + descending alarm (1000→100 STEP -50, SOUND each)
+- Color flash sequence: 6 pairs of SCREEN 12 + colored BF fill (gray/yellow/darkblue/white/gray/black)
+  with SOUND between each pair; each SCREEN 12 call clears screen (mode-reinit trick)
+- _DELAY 0.789 + "You stupid SHIT!!" + _DELAY 1.052
+- "You reformatted your own hard disk." + _DELAY 1.052
+- "Real smooth move, geek." + _DELAY 1.578 (6 × 0.263)
+- Sets Fa4d2!=15 (column offset 21 for GAME OVER flash) and Fa452!=1 (penalty flag)
+- Falls into LGameEnd
+
+**LGameEnd (La58f)** — entered by JMP from game loop when game timer expires normally:
+- IF score! > 1000: GOSUB LVictory; Fa44e!=1 (victory flag for +2000 bonus)
+- IF score! <= 1000: GOTO LGameOver
+
+**LGameOver (La5e0)** — GAME OVER 4-color flash at row 27:
+- Colors: green (10) / magenta (13) / light blue (9) / yellow (14), each with spaces-erase
+- Each flash pair: PRINT text + SOUND 500,4 + _DELAY 0.263 + PRINT spaces + _DELAY 0.263
+- Final yellow hold: _DELAY 0.789 (3×LPause263a) instead of the usual 0.263
+- IF score! < 60 THEN GOTO LTooFewPoints; ELSE GOTO LFinalTally
+
+**LTooFewPoints (La7db)** — router for score < 60:
+- First/FORMAT-C game (Fa4d2!=15): GOTO LYouLose (skip NOT ENOUGH POINTS)
+- Subsequent games (Fa4d2!=0): GOTO LNotEnoughPts
+
+**LNotEnoughPts (La7f1)** — NOT ENOUGH POINTS flash ×3 (subsequent games, score < 60):
+- Fa4d2!=0 (reset column offset)
+- 3 iterations: PRINT green text + erase + pauses + SOUND 800,1 each
+
+**LYouLose (La980)** — YOU LOSE WEENIE flash ×4:
+- SOUND 200,3 + SOUND 120,5 + COLOR 13 before each of 4 prints
+- " ***** YOU LOSE, WEENIE !!! *******" with spaces-erase and _DELAY 0.263 between
+- Final hold: _DELAY 1.052 (4×LPause263a)
+- Fa4d2!=0 (reset for next game)
+- Falls into LFinalTally
+
+**LFinalTally (Laba9)** — final score update, history, reset:
+- CLS 0; Fa4da!=0 (high score); Fa4de!=0 (game count)
+- IF score! < 60: Fa452!=1 (low-score penalty)
+- IF Fa44e!=1: score! += 2000; IF Fa452!=1: score! -= 2000
+- IF score! > Fa4da!: Fa4da!=score! (update high score)
+- Running average: Fa4e2! = (Fa4e2!×Fa4de! + score!) / (Fa4de!+1)
+- GOSUB Lb207 (display score table) + GOSUB Lb029 (end screen) + GOSUB Lbca2 (end-of-game handler)
+- Reset Fa44e!=0, Fa452!=0
+- FOR dmgType!=1 TO 10: FOR Fa4e6!=1 TO 4: compStat!(INT(dmgType!),INT(Fa4e6!))=0
+- cmdBuf$="" + GOTO L01a3 (restart)
+
+### New labels added to glossary
+| New label     | Old address | Description |
+|---------------|-------------|-------------|
+| LLossScreen   | L9c28       | FORMAT C: self-attack sequence + game-over path |
+| LGameEnd      | La58f       | Game-end router (score check, route to win/lose/tally) |
+| LGameOver     | La5e0       | GAME OVER 4-color flash |
+| LTooFewPoints | La7db       | Score<60 router |
+| LNotEnoughPts | La7f1       | NOT ENOUGH POINTS flash ×3 |
+| LYouLose      | La980       | YOU LOSE WEENIE flash ×4 |
+| LFinalTally   | Laba9       | Final tally, history update, compStat! reset, restart |
+
+### New variables added to glossary
+| Variable | Original | Meaning |
+|----------|----------|---------|
+| Fa44e!   | Fa44e!   | Victory flag: 1 if score>1000, causes +2000 bonus |
+| Fa452!   | Fa452!   | Penalty flag: 1 for FORMAT C: or score<60, causes -2000 |
+| Fa4d2!   | Fa4d2!   | GAME OVER column offset (15=first/format-C game, 0=subsequent) |
+| Fa4da!   | Fa4da!   | High score from history array[INT(Fa4d6!)] |
+| Fa4de!   | Fa4de!   | Game count from history array |
+| Fa4e2!   | Fa4e2!   | Running average score |
+| Fa4e6!   | Fa4e6!   | Inner loop counter for compStat! reset (1-4) |
+
+### Key discoveries
+- **DS:0xb7a0 = 1000.0**: Both the victory threshold (IF score!>1000) AND the descending alarm
+  start frequency (1000→100 STEP -50). Confirmed via individual byte reads after PowerShell
+  array-slice bug ($0xb7a0 parsing as octal, producing garbage float).
+- **SCREEN 12 reinit trick**: Calling `SCREEN 12` while already in mode 12 clears the screen.
+  The color flash sequence exploits this: SCREEN 12 / LINE fill / SCREEN 12 / SOUND / repeat.
+- **Fa44e! and Fa452! purpose confirmed**: Both were "unknown" after session 12. Now:
+  Fa44e!=1 is set by LGameEnd (victory), Fa452!=1 is set by LLossScreen (FORMAT C:) and
+  LFinalTally (low score). Both drive the +2000/-2000 score adjustment in LFinalTally.
+- **Non-returning function**: LLossScreen is entered via CALL from the game loop (01a2:2ba0)
+  but never returns — it ends with GOTO L01a3. The pushed return address is never used.
+- **GAME OVER column offset trick**: Fa4d2! is set to 15 in the FORMAT C: path (so LOCATE 27,21
+  centers the text for a centered display), and reset to 0 afterward (LOCATE 27,6 = left margin).
+
+### Progress metrics
+- ASM remaining: 1,520 lines (43.9%) — down from 3,453 (63.5%)
+- BASIC done: 1,939 lines (56.1%) — up from 1,989 (the delta includes glossary expansion)
+- Functions completed this session: LLossScreen, LGameEnd, LGameOver, LTooFewPoints,
+  LNotEnoughPts, LYouLose, LFinalTally (all as one continuous translation)
+
+### Next target
+`FUN_01a2_ae3d` at lanlokre.bas line 1615, address 01a2:ae3d.
+Run: `.\tools\extract_fn.ps1 -Address ae3d`
+
+---
+
 ## Session 16 — 2026-05-28 (LVictory: victory screen)
 
 ### What was done
