@@ -6,6 +6,218 @@ and what changed in the repo.
 
 ---
 
+## Session 16 — 2026-05-28 (LVictory: victory screen)
+
+### What was done
+Decompiled `FUN_01a2_9170` = `LVictory` — the full victory screen shown when the player
+crashes the entire network (all 10 computers damaged).
+
+Replaced ~1,105 raw ASM lines (address range 01a2:9170–9ae6) with 102 lines of BASIC.
+
+Raw ASM count: 4,346 → 3,453 (−893 ASM lines).
+
+### New labels added to glossary
+| New label | Old label | Description |
+|-----------|-----------|-------------|
+| `LVictory` | `L9170` | Victory screen: network crashed, player wins, 2000 pt bonus |
+| `Lbca2`    | `Lbca2`  | End-of-game handler (not yet decompiled; called from LVictory) |
+
+### Structure of LVictory
+1. **Set victory flag**: `Fa44e! = 1`
+2. **Flash VICTORY !! text** 4 times at LOCATE 27,6 (bottom row), alternating COLOR 10 and 2,
+   with SOUND 1200,2 / SOUND 1000,2 bookending each flash and LPause263a blanks between
+3. **Victory fanfare**: SOUND 1000,5 / 700,5 / 1000,5 / 700,5 / 1000,5
+4. **CLS 0** + 1 pause
+5. **Score panel**: LINE BF cyan(3) at (50,150)-(590,400); LINE B yellow(14) at (48,148)-(592,402)
+6. **Text row 2**: LOCATE 2,25 / COLOR 13 / PRINT "C O N G R A T U L A T I O N S ! ! !"
+7. **Text row 4**: LOCATE 4,22 / COLOR 15 / PRINT "You have successfully "; + COLOR 12 "CRASHED ";
+   + COLOR 15 "the network."
+8. **Text row 6**: COLOR 10 / LOCATE 6,18 / PRINT "This victory increases your score by 2000 points."
+9. **_DELAY 2.367** (9 x LPause263a): orig FOR loop counter 1..9 calling FUN_01a2_3c57
+10. **Text row 8**: LOCATE 8,29 / COLOR 2 / PRINT "Evil Al "; + COLOR 14 "is not happy."
+11. **1 pause** + SOUND 110,2 + SOUND 130,3
+12. **2 pauses** + set drawX!=300, drawY!=330 + GOSUB LAlAnim (Al drawn at victory position)
+13. **3 pauses** + victory jingle: SOUND 80,3 / 120,3 / 80,2 / 110,2 / 130,3
+14. **2 pauses** + network crash graphic (40 draw ops):
+    - 3 concentric black circles (radii 3/5/8) centered near (299,338), each followed by LPause263a
+    - Antenna symbol (3 LINEs) + LPause263b
+    - 5 computer node boxes (each 1-4 LINEs + LPause263b), 1 L-shape (3 LINEs + LPause263b),
+      2 posts with dot (2 LINEs each + LPause263b)
+15. **_DELAY 1.052** (4 x LPause263a): orig FOR loop counter 1..4 calling FUN_01a2_3c57
+16. **GOSUB Lbca2** (end-of-game handler, not yet decompiled) + RETURN
+
+### Key discoveries
+- **LOCATE row/col re-confirmed**: the push form `1, row, 1, col, 4` maps to LOCATE row, col;
+  row 27 = near-bottom of SCREEN 12; text rows 2/4/6/8 are in the top strip of the screen
+  above the graphical panel (which is at y=150-400 in pixel space)
+- **SOUND jingle after LAlAnim**: correct values are SOUND 110,2 (not 110,3 as summary had),
+  SOUND 130,3; the fourth jingle note uses duration 2 not 3
+- **1 pause before SOUND 110**: only 1 LPause263a between "is not happy." print and SOUND 110,2;
+  2 pauses come AFTER SOUND 130,3 before drawX!/drawY!/LAlAnim
+- **No LPause263b after last post**: block 9 (post+dot B at x=550) ends directly with _DELAY 1.052
+  -- there is no GOSUB LPause263b between it and the final delay
+- **Computer node C divider at y=240** (not y=230 as the other nodes): LINE (270,240)-(315,240),0
+- **Delay loop variable**: `_DELAY 2.367` loop uses DS:[0xa4ce]; `_DELAY 1.052` loop uses
+  DS:[0xa496]=dmgType! reused as loop counter; both dropped per delay-loop policy
+- **Fa44e!** set to 1.0 at entry -- confirms it is the victory/game-over flag
+  (note: Fa44e! and Fa452! were the two unknowns from session 12; purpose of Fa452! still unknown)
+- **Lbca2** (FUN_01a2_bca2) is called from three places: LVictory (9170), the loss path (9c28),
+  and FUN_01a2_0d85 -- it is the game-over cleanup handler, not yet decompiled
+
+### Files changed
+- `lanlokre.bas`: LVictory BASIC splice (replaces 01a2:9170-9ae6), Lbca2 label stub added before
+  FUN_01a2_bca2 header, LVictory+Lbca2 glossary entries added
+- `PROGRESS_LOG.md`: this entry
+- `CLAUDE.local.md`: session log updated
+
+---
+
+## Session 15 — 2026-05-28 (LSelfPJam, LSelfLock, LSelfErase: self-attack error handlers)
+
+### What was done
+Decompiled three sibling self-attack handlers:
+- `FUN_01a2_902f` = `LSelfPJam` — player PRINT-jammed own machine
+- `FUN_01a2_90ad` = `LSelfLock` — player LAN-locked own machine
+- `FUN_01a2_90f7` = `LSelfErase` — player DEL-*.*-erased own directory
+
+All three follow the pattern: sound effect → set repairEnd! timer → set lockMsg$/rstMsg$ strings
+→ GOSUB LRepairUI → GOSUB LResetSel → GOTO LGameLoop.
+
+Three new string variables named: lockMsg$ (=Sa4c6$) and rstMsg$ (=Sa4ca$).
+LRepairUI label established for FUN_01a2_bab9 stub.
+
+Raw ASM count: 4,522 → 4,346 (−176 ASM lines).
+
+### New labels added to glossary
+| New label | Old label | Description |
+|-----------|-----------|-------------|
+| `LSelfPJam`  | `L902f` | Self-attack: player PRINT-jammed own printer |
+| `LSelfLock`  | `L90ad` | Self-attack: player LAN-locked own machine |
+| `LSelfErase` | `L90f7` | Self-attack: player DEL *.*-erased own directory |
+| `LRepairUI`  | `Lbab9` | Repair-wait UI: show lock msg, animate computers, show unlock msg |
+
+### New string variables added to glossary
+| New name | Old name | Description |
+|----------|----------|-------------|
+| `lockMsg$` | `Sa4c6$` | Self-attack error message (shown while locked) |
+| `rstMsg$`  | `Sa4ca$` | Self-attack restore message (shown when unlocked) |
+
+### Structure of self-attack handlers
+
+**LSelfPJam (PRINT attack on own machine)**
+- WHILE dmgType! >= 100: SOUND INT(dmgType!), 1 : dmgType! = dmgType! - 30 (700→100 Hz, step −30)
+- repairEnd! = TIMER + 25
+- lockMsg$ = "YOU JAMMED YOUR OWN PRINTER, BUTTHEAD!"
+- rstMsg$ = "   YOUR COMPUTER IS NOW UNLOCKED      "
+
+**LSelfLock (LAN LOCK attack on own machine)**
+- SOUND 2000, 3
+- repairEnd! = TIMER + 25
+- lockMsg$ = "YOUR COMPUTER IS LOCKED, ASSHOLE!"
+- rstMsg$ = "   YOUR COMPUTER IS NOW UNLOCKED     "
+
+**LSelfErase (DEL *.* attack on own machine)**
+- SOUND 2000, 3
+- IF TIMER > repairEnd! THEN repairEnd! = TIMER + 45 ELSE repairEnd! = repairEnd! + 45
+- lockMsg$ = "GOOD GOING, BOZO.  YOU ERASED YOUR DIRECTORY."
+- rstMsg$ = "  HAPPY AL HAS RESTORED YOUR DIRECTORY.      "
+
+### Key discoveries
+- All three handlers end with GOTO LGameLoop (JMP to 1e78), not RETURN -- they are not
+  proper GOSUB subroutines, they jump back to the main game loop directly
+- LSelfErase distinguishes expired vs active timer using FPCOMPARE: FLD [repairEnd!] /
+  FLD TIMER / CALLF FPCOMPARE / JA fires when TIMER > repairEnd! → already expired path
+- dmgType! reused as descending freq counter in LSelfPJam WHILE loop
+- lockMsg$/rstMsg$ are pair-set together; LRepairUI (bab9) consumes both for the wait-UI display
+- DS constants: 0xb4a6=700 (freq start), 0xb512=-30 (freq step), 0xb47a=100 (freq stop),
+  0xb4f6=25 (25-second lockout), 0xb42a=45 (45-second lockout for erase), 0xa624=3.0 (SOUND duration)
+
+### Files changed
+- `lanlokre.bas`: LSelfPJam/Lock/Erase BASIC splices, LRepairUI label stub, new glossary entries
+- `PROGRESS_LOG.md`: this entry
+
+---
+
+## Session 14 — 2026-05-28 (LAlAnim: Al figure draw + blink animation)
+
+### What was done
+Decompiled `FUN_01a2_637d` = `LAlAnim` — the largest single function in the game.
+Al is the repair technician who fixes damaged computers; this routine draws him and runs
+a 5-iteration blink/eye-movement animation.
+
+5,619 raw ASM lines replaced with 151 lines of BASIC.
+
+Raw ASM count: 9,965 -> 4,522 (-5,443 ASM lines).
+
+### New label added to glossary
+| New label | Old label | Description |
+|-----------|-----------|-------------|
+| `LAlAnim` | `L637d` | Draw Al figure and animate blinking (5 iterations) |
+
+### New DS constants discovered
+| Address | Value | Usage |
+|---------|-------|-------|
+| `0xb4f6` | 25.0 | Al face center x-offset; also animation chevron apex x |
+| `0xb024` | 27.0 | Animation eyelid V-line y-offset |
+| `0xb4ca` | 29.0 | Old eye-highlight x-offset (right, before shift) |
+| `0xb4ce` | 37.0 | Animation right-eye outer circle x-offset |
+| `0xaf7c` | 5.0  | Animation loop limit (5 iterations) |
+| `0xb4c6` | 22.0 | Collar y-offset |
+| `0xb502` | 1.1  | Mouth arc start angle (radians) |
+| `0xb50e` | 500.0 | Random beep frequency range multiplier (RND*500+40) |
+| `0xb512` | -30.0 | Used in FUN_01a2_902f (next function) |
+| `0xb3ee` | 34.0 | Nose-dot y-offset |
+
+### Structure of LAlAnim
+
+**Initial draw (static):**
+1. Background: cyan BF fill covering figure area (drawX!-5 to +55, drawY!-5 to +60)
+2. Face circle: r=20 centered at (drawX!+25, drawY!+30), black outline + gray fill
+3. Collar: cyan BF polygon, then 7 black outline LINEs forming the collar shape
+4. Collar badge: bright-blue (9) BF fill + black B box outline
+5. Green shirt fill: PAINT (drawX!+25, drawY!), 2, 0 -- floods collar interior green
+6. Antenna interior diagonal LINE
+7. LED button: white circle r=2 filled, then black border circle r=3
+8. Eyes: two black circles r=2 at (+20/+30, +29), filled black, outlined in light-red (12)
+9. Eye highlights: two PSETs white at (+21/+31, +28)
+10. Nose: two small circles r=1 at (+24/+26, +34)
+11. Mouth: two overlapping arcs (r=20 and r=19) centered at (drawX!+25, drawY!+60),
+    angles 1.1 to 2.0 rad, creating upward-bowing smile at ~drawY!+42
+12. Body: 73 black plain LINEs forming shirt/arms/legs silhouette
+
+**Animation loop (5 iterations, using dmgType! as counter):**
+Each iteration:
+- SOUND INT(RND(1)*500+40), 1 -- random beep 40-540 Hz, ~55ms
+- Shift eye highlights right (+19/+29 -> erase, +21/+31 -> draw white)
+- Draw gray (7) circles r=3 at (drawX!+14, drawY!+35) and (drawX!+37, drawY!+35)
+- Draw gray eyelid V-lines from (drawX!+25, drawY!+27) to (drawX!+18, drawY!+23) and (+32, +23)
+- GOSUB L3c90 (0.263 s delay)
+- Shift highlights back (+21/+31 -> erase, +19/+29 -> draw white)
+- Erase V-lines with black LINEs
+- Draw magenta (5) circles r=3 at same positions to "reopen" eyes
+- GOSUB L3c90 (0.263 s delay)
+
+**Key discoveries:**
+- CIRCLE arc with start_angle/end_angle: compiled as CALLF CIRCLE_setstart + CALLF CIRCLE_setend
+  before CALLF CIRCLE; BASIC syntax: CIRCLE (cx,cy), r, color, start, end
+- Nostril radius is 1.0 (not 2.0 -- parser confused [0xa550]=1.0 with [0xa6b4]=2.0)
+- Direct word-push for drawY! (PUSH [0xa234]/[0xa232]) means y = drawY! with zero offset
+- Animation uses DIFFERENT circle positions from initial draw pupils (outer feature vs inner pupil)
+- "Open eye" color = magenta (5), "closed" color = gray (7)
+- Parser FADD state-machine had false-positive y+60 entries for nose dots (fixed by reading ASM directly)
+- PS script to extract all 107 graphic operations from the initial draw section worked correctly
+  for LINEs but gave wrong radius for nostril circles; corrected by direct ASM reading
+
+### Functions remaining (approximate)
+After this session:
+- Raw ASM: 4,522 lines (69%)
+- BASIC: 2,031 lines (31%)
+- Done: 22 functions, partial: 3, todo: 23
+
+Next target: FUN_01a2_902f (L902f) -- small error-handling subroutines (~40-50 lines each)
+
+---
+
 ## Session 13 — 2026-05-28 (LAtkFmt: FORMAT C: attack, damage type 3)
 
 ### What was done

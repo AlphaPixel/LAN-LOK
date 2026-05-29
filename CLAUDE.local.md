@@ -13,6 +13,67 @@ Update this file at the end of each work session.
 
 ## Session Log
 
+### 2026-05-28 — Decompilation Session 16: LVictory (victory screen)
+- Completed `FUN_01a2_9170` = LVictory -- full victory screen (01a2:9170-9ae6)
+- ~893 raw ASM lines replaced with 102 lines of BASIC
+- Raw ASM count: 4,346 -> 3,453 (-893 ASM lines)
+- New labels: LVictory=L9170, Lbca2=Lbca2 (end-of-game handler, stub only)
+- Structure: Fa44e!=1 flag -> flash VICTORY!! 4x alternating green/COLOR10/2 + SOUND 1200/1000,2
+  -> fanfare 1000/700/1000/700/1000,5 -> CLS 0 -> cyan BF panel + yellow B border
+  -> LOCATE 2,25 CONGRATULATIONS (COLOR 13) -> LOCATE 4,22 "You have successfully CRASHED the network."
+  -> LOCATE 6,18 "2000 points." (COLOR 10) -> _DELAY 2.367 (9 x LPause263a)
+  -> LOCATE 8,29 "Evil Al is not happy." -> 1 pause -> SOUND 110,2+130,3 -> 2 pauses
+  -> drawX!=300 drawY!=330 GOSUB LAlAnim -> 3 pauses -> jingle 80/120/80/110/130 Hz
+  -> 2 pauses -> crash graphic (3 circles, antenna, 5 computer boxes, L-shape, 2 posts)
+  -> _DELAY 1.052 (4 x LPause263a) -> GOSUB Lbca2 -> RETURN
+- Key discoveries:
+  - Fa44e! = 1 at entry confirms it is the victory/game-over flag (was unknown after session 12)
+  - _DELAY 2.367: FOR loop uses [0xa4ce] as counter, limit=9; _DELAY 1.052: limit=4, uses [0xa496]=dmgType!
+  - No LPause263b after last post (post+dot B at x=550) -- goes directly to _DELAY 1.052
+  - SOUND 110,2 (NOT SOUND 110,3 -- prior summary was wrong about duration); 4th jingle note is dur=2
+  - 1 pause before SOUND 110,2 (after "Evil Al..."); 2 pauses after SOUND 130,3 before LAlAnim
+  - Computer node C has divider line at y=240 (not y=230 like others)
+  - Lbca2 (FUN_01a2_bca2) is end-of-game handler called from LVictory, loss path (9c28), and FUN_01a2_0d85
+- **Next target:** FUN_01a2_9ae7 at lanlokre.bas line 1334 (next up after LVictory)
+
+### 2026-05-28 — Decompilation Session 15: LSelfPJam, LSelfLock, LSelfErase (self-attack handlers)
+- Completed 3 sibling self-attack error handlers: FUN_01a2_902f/90ad/90f7
+- All three end with GOTO LGameLoop (JMP to 1e78) -- not SUBroutines, they jump to game loop
+- ~176 raw ASM lines replaced with ~43 lines of BASIC (3 functions)
+- Raw ASM count: 4,522 -> 4,346 (-176 ASM lines)
+- New labels: LSelfPJam=L902f, LSelfLock=L90ad, LSelfErase=L90f7, LRepairUI=Lbab9 (stub)
+- New string variables: lockMsg$=Sa4c6$, rstMsg$=Sa4ca$ (error msg pair consumed by LRepairUI)
+- LSelfPJam: WHILE 700 >= freq >= 100 step -30: SOUND freq,1 (descending beep cascade) then 25s lockout
+- LSelfLock: SOUND 2000,3 then 25s lockout
+- LSelfErase: SOUND 2000,3; IF TIMER > repairEnd! THEN fresh 45s ELSE extend by 45s
+- Key: LSelfErase FPCOMPARE -- FLD [repairEnd!] first, FLD TIMER second;
+  JA fires when ST(0)=TIMER > ST(1)=repairEnd! (already expired path)
+
+### 2026-05-28 — Decompilation Session 14: LAlAnim (Al figure draw + blink animation)
+- Completed `FUN_01a2_637d` = LAlAnim -- the largest single function in the game
+- 5,619 raw ASM lines replaced with 151 lines of BASIC
+- Raw ASM count: 9,965 -> 4,522 (-5,443 ASM lines)
+- New label: LAlAnim=L637d; added to glossary
+- Structure: initial draw (background BF, face circle+gray fill, cyan collar BF, 7 collar outline
+  LINEs, bright-blue collar badge BF, green shirt PAINT, antenna diagonal LINE, LED button,
+  eyes: black r=2 circles + black fill + light-red r=2 outline + white highlight PSETs,
+  nose: two r=1 black circles, mouth: 2 overlapping arcs r=20/19 centered at y+60 angles 1.1-2.0,
+  body: 73 black plain LINEs for shirt/arms/legs)
+  + blink animation loop (5 iterations): SOUND + highlight shift + gray close + V-lines + delay
+  + highlight shift back + black erase V-lines + magenta open + delay + NEXT
+- Key discoveries:
+  - CIRCLE arc syntax: QB compiles start/end angles as separate CALLF CIRCLE_setstart/CIRCLE_setend
+    before CALLF CIRCLE; BASIC: CIRCLE (cx,cy), r, color, start_angle, end_angle
+  - Direct word-push pattern: PUSH [0xa234]/[0xa232] passes drawY! directly (y offset = 0)
+  - Nostril circles have r=1.0 (not 2.0 -- parser confused [0xa550]=1.0 with [0xa6b4]=2.0)
+  - Animation positions differ from initial draw: outer eye feature at (x+14/+37, y+35) vs
+    inner pupils at (x+20/+30, y+29); open=magenta (5), closed=gray (7)
+  - Mouth arc: center at (x+25, y+60), arcs 1.1 to 2.0 rad, creates ~y+40-42 smile in face area
+  - PS extraction script correctly found all 107 initial-draw operations; body LINEs count = 73 confirmed
+- dmgType! (=Fa496!) reused as blink loop counter (comment added)
+- fanSndF! (=Fa23e!) temp freq variable inlined (not a separate glossary entry)
+- Next target: FUN_01a2_902f (L902f) + sibling error routines at lanlokre.bas line 1172
+
 ### 2026-05-28 — Decompilation Session 13: LAtkFmt (FORMAT C: attack, damage type 3)
 - Completed `FUN_01a2_56c4` = LAtkFmt -- the FORMAT C: (damage type 3) attack routine
 - 1,353 raw ASM lines replaced with 81 lines of BASIC
@@ -181,14 +242,16 @@ Update this file at the end of each work session.
 
 ## Current Work State
 
-**Next target:** `L56c4` (FUN_01a2_56c4) — fourth attack type (SCREWED? FORMAT? type-3 damage?).
-At `lanlokre.bas` line 846, address 01a2:56c4.
-Run: `.\tools\extract_fn.ps1 -Address 56c4`
+**Next target:** `FUN_01a2_9ae7` at lanlokre.bas line 1334, address 01a2:9ae7.
+Run: `.\tools\extract_fn.ps1 -Address 9ae7`
 
-**Progress after session 11 — LOCATE/COLOR corrections (2026-05-28):**
-- Raw ASM lines in lanlokre.bas: 11,207 (unchanged -- corrections only, no new decompilation)
-- Functions done: L2e2d, L3522, L376f, L3a10, L3c57, L3c90, L3cc9, L3d02, L3d3b/422d/4246, L42d5, L5018/50b2/5124
-- All LOCATE and COLOR calls verified correct per Known_Instruction_Formats.md
+**Progress after session 16 — LVictory (2026-05-28):**
+- Raw ASM lines in lanlokre.bas: 3,453 (63.5% remaining)
+- BASIC done: 1,989 lines (36.5%)
+- Functions completed: L2e2d, L3522, L376f, L3a10, L3c57, L3c90, L3cc9, L3d02,
+  L3d3b/422d/4246, L42d5, L5018/50b2/5124, L56c4/LAtkFmt, L637d/LAlAnim,
+  L902f/LSelfPJam, L90ad/LSelfLock, L90f7/LSelfErase, L9170/LVictory
+- Notable stubs: L61cb (LCircXhair, called from LAtkFmt), Lbab9 (LRepairUI), Lbca2 (end-of-game)
 
 **Baseline (before any decompilation work):**
 - Raw ASM lines: 15,456 (86.1%)
