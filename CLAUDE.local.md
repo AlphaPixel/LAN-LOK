@@ -13,6 +13,18 @@ Update this file at the end of each work session.
 
 ## Session Log
 
+### 2026-05-30 -- Session 19: QB64-PE compilation fixes + successful compile
+- **MILESTONE: lanlokre.bas compiles cleanly -- lanlokre.exe produced (4,094,976 bytes)**
+- Fixed "Label 'Lae3d' not defined": inserted complete LLoadPlayers function with array stores + error handling
+- Fixed LFinalTally placeholder reads: `Fa4da!=0`/`Fa4de!=0` -> actual hist_hiScore!/hist_games! reads
+- Added hist_* array write-back in LFinalTally before GOSUB LSavePlayers
+- Resolved 16 stale hex-address label references surfaced by QB64-PE syntax checking:
+  - Lae3d->LLoadPlayers, L637d->LAlAnim (x3), L9170->LVictory (x2), L56c4->LAtkFmt (x2)
+  - L3c90->LPause263b (x2), F0bcb->LDrawArrow (typo), La58f->LGameEnd, Laba9->LFinalTally (x2)
+  - L902f->LSelfPJam, L90ad->LSelfLock, L90f7->LSelfErase, L9c28->LLossScreen, L01a3->LIntroGfx
+- `qb64pe.exe -z` exit 0 (syntax clean); `qb64pe.exe -x ... -o lanlokre.exe` exit 0 (full compile)
+- **Next step:** manual gameplay testing, then commit (with user approval)
+
 ### 2026-05-30 -- MILESTONE SESSION 18: Lb207 / Lb786 / LRepairUI / Lbca2 (player UI + end-of-game)
 - **REACHED 100% -- 0 raw ASM lines remaining in lanlokre.bas**
 - Completed 4 functions: Lb207 (score table), Lb786 (player select/register), LRepairUI (lockout wait), Lbca2 (end-of-game prompt)

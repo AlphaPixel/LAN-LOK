@@ -1,4 +1,10 @@
 DIM compStat!(10,5)     ' compStat!=Fa246!  -- computer status array (10 computers x 5 attrs)
+DIM hist_namelen!(43)   ' DS:0x9d5e  -- player name length per slot (1..43)
+DIM hist_hiScore!(43)   ' DS:0x9e2a  -- player high score per slot
+DIM hist_f4!(43)        ' DS:0x9ef6  -- wins count per slot ("won" column)
+DIM hist_f5!(43)        ' DS:0x9fc2  -- losses count per slot ("lost" column)
+DIM hist_avg!(43)       ' DS:0xa08e  -- running avg score per slot
+DIM hist_games!(43)     ' DS:0xa15a  -- games played per slot
 
 ' ---------------------------------------------------------------------------
 ' SYMBOL RENAMING GLOSSARY
@@ -159,7 +165,7 @@ GOSUB LPause263a:GOSUB LPause263a:GOSUB LPause263a
 SCREEN 12
 RANDOMIZE TIMER
 
-GOSUB Lae3d
+GOSUB LLoadPlayers   ' Lae3d -- read "players" file into hist_* arrays
 LIntroGfx:   ' LIntroGfx=L01a3
 CLS 0
 
@@ -250,14 +256,14 @@ GOSUB LPause263a
 SOUND 200,4
 
 ' Al animation
-GOSUB L637d
+GOSUB LAlAnim
 
 ' Arrow animation
 drawClr! = 63:GOSUB LDrawArrow
 drawClr! = 13:GOSUB LClrArrow:GOSUB LDrawArrow
 drawClr! = 12:GOSUB LClrArrow:GOSUB LDrawArrow
 drawClr! = 13:GOSUB LClrArrow:GOSUB LDrawArrow:GOSUB LClrArrow
-drawClr! = 4:GOSUB F0bcb
+drawClr! = 4:GOSUB LDrawArrow   ' F0bcb = L0bcb
 
 GOSUB LPause263a
 SOUND 900,3
@@ -428,7 +434,7 @@ LINE (10,235)-(420,350),0,BF
 LINE (12,237)-(418,348),14,B
 drawX!=30
 drawY!=263
-GOSUB L637d
+GOSUB LAlAnim
 
 alFixPJam!=0
 alFixLock!=0
@@ -485,22 +491,22 @@ dmgCount!=0
 curTime!=TIMER
 COLOR 15:LOCATE 27,4:PRINT ">"
 GOSUB LUpdTimer
-IF minsLeft! < 0 THEN GOTO La58f
+IF minsLeft! < 0 THEN GOTO LGameEnd
 FOR compI!=1 to 10
-drawX! = compStat!(compI!,4)
-drawY! = compStat!(compI!,3)
-IF compStat!(compI!,1) <> 0 THEN
-ELSE
-GOSUB LAnimDmg
-GOTO LNextComp
-dmgCount!=dmgCount!+1
-curTime!=TIMER
-alTarget!=compI!
-IF compStat!(compI!,2) < curTime! THEN GOSUB LAlFix
+  drawX! = compStat!(compI!,4)
+  drawY! = compStat!(compI!,3)
+  IF compStat!(compI!,1) <> 0 THEN   ' damaged
+    dmgCount!=dmgCount!+1
+    curTime!=TIMER
+    alTarget!=compI!
+    IF compStat!(compI!,2) < curTime! THEN GOSUB LAlFix
+  ELSE   ' undamaged
+    GOSUB LAnimDmg
+  END IF
 LNextComp:   ' LNextComp=L1fb0
 NEXT compI!
-IF dmgCount! > 8 THEN GOSUB L9170
-IF dmgCount! > 8 THEN GOTO Laba9
+IF dmgCount! > 8 THEN GOSUB LVictory
+IF dmgCount! > 8 THEN GOTO LFinalTally
 IF TIMER > lockUntil! THEN lockUntil!=0
 IF TIMER < lockUntil! THEN GOTO LGameLoop
 
@@ -624,7 +630,7 @@ GOTO LGameLoop
 
 ' PRINT command
 LCmdPrint:   ' LCmdPrint=L28d7
-IF target!=0 THEN GOTO L902f
+IF target!=0 THEN GOTO LSelfPJam
 RANDOMIZE TIMER
 IF RND > .24 AND target! < 10 THEN GOSUB LAtkPJam
 IF RND > .3 AND target! = 10 THEN GOSUB LAtkPJam
@@ -636,7 +642,7 @@ GOTO LGameLoop
 
 ' SEND MAIL command
 LCmdMail:   ' LCmdMail=L29bd
-IF target! = 0 THEN GOTO L90ad
+IF target! = 0 THEN GOTO LSelfLock
 RANDOMIZE TIMER
 IF RND > .12 AND target! < 10 THEN GOSUB LAtkLock
 IF RND > .2 AND target! = 10 THEN GOSUB LAtkLock
@@ -648,7 +654,7 @@ GOTO LGameLoop
 
 ' DEL command
 LCmdDel:   ' LCmdDel=L2aa3
-IF target! = 0 THEN GOTO L90f7
+IF target! = 0 THEN GOTO LSelfErase
 RANDOMIZE TIMER
 IF target! < 10 AND RND > .4 THEN GOSUB LAtkErase
 IF target! = 10 AND RND > .6 THEN GOSUB LAtkErase
@@ -660,13 +666,13 @@ GOTO LGameLoop
 
 ' FORMAT command
 LCmdFmt:   ' LCmdFmt=L2b8d
-IF target! = 0 THEN GOTO L9c28
+IF target! = 0 THEN GOTO LLossScreen
 RANDOMIZE TIMER
-IF target! < 10 AND RND > .63 THEN GOSUB L56c4
+IF target! < 10 AND RND > .63 THEN GOSUB LAtkFmt
 IF target! = 10 AND RND > .8 THEN hobbsFmt!=1: ELSE hobbsFmt! = 0
-IF target! = 10 AND hobbsFmt! = 1 THEN GOSUB L56c4
-IF target! = 10 AND hobbsFmt! = 1 AND score! > 400 THEN GOSUB L9170
-IF target! = 10 AND hobbsFmt! = 1 AND score! > 400 THEN GOTO Laba9
+IF target! = 10 AND hobbsFmt! = 1 THEN GOSUB LAtkFmt
+IF target! = 10 AND hobbsFmt! = 1 AND score! > 400 THEN GOSUB LVictory
+IF target! = 10 AND hobbsFmt! = 1 AND score! > 400 THEN GOTO LFinalTally
 GOSUB LResetSel
 cmdBuf$=""
 LOCATE 27,6
@@ -765,7 +771,7 @@ COLOR 2                                                ' Green text
 PRINT "O.K.       "                                    ' Print OK confirmation
 compStat!(INT(alTarget!), 1) = 0                             ' Clear damage entry (0 = OK)
 GOSUB LCalcScore
-GOSUB L637d                                            ' Al animation
+GOSUB LAlAnim                                            ' Al animation
 LINE (drawX!+(-5),drawY!+(-5))-(drawX!+55,drawY!+60),3,BF  ' Erase old icon
 GOSUB LDrawIcon                                            ' Redraw clean computer icon
 RETURN
@@ -1195,7 +1201,7 @@ FOR dmgType! = 1 TO 5
     ' Eyelid V-lines: gray chevron above eye area
     LINE (drawX!+25, drawY!+27)-(drawX!+18, drawY!+23), 7
     LINE (drawX!+25, drawY!+27)-(drawX!+32, drawY!+23), 7
-    GOSUB L3c90   ' Delay ~0.263 s (eyes closed)
+    GOSUB LPause263b   ' Delay ~0.263 s (eyes closed)
     ' Shift highlights back left: erase at +21/+31, draw at +19/+29
     PSET (drawX!+21, drawY!+28), 0
     PSET (drawX!+31, drawY!+28), 0
@@ -1209,7 +1215,7 @@ FOR dmgType! = 1 TO 5
     PAINT (drawX!+14, drawY!+35), 5, 5
     CIRCLE (drawX!+37, drawY!+35), 3, 5
     PAINT (drawX!+37, drawY!+35), 5, 5
-    GOSUB L3c90   ' Delay ~0.263 s (eyes open)
+    GOSUB LPause263b   ' Delay ~0.263 s (eyes open)
 NEXT dmgType!
 RETURN
 ' Self-attack: player aimed PRINT (PRINTER JAM) at own machine (SKUA)
@@ -1227,9 +1233,6 @@ rstMsg$ = "   YOUR COMPUTER IS NOW UNLOCKED      "
 GOSUB LRepairUI   ' repair-wait UI loop (FUN_01a2_bab9)
 GOSUB LResetSel   ' reset target display to SKUA (L2d76)
 GOTO LGameLoop    ' back to main game loop (L1e78)
-                             **************************************************************
-                             *                          FUNCTION                          *
-                             **************************************************************
 ' Self-attack: player aimed LAN LOCK at own machine (SKUA)
 ' Single warning beep, 25 s repair timer, then wait-for-repair loop
 LSelfLock:   ' LSelfLock=L90ad -- Player locked own LAN
@@ -1240,9 +1243,6 @@ rstMsg$ = "   YOUR COMPUTER IS NOW UNLOCKED     "
 GOSUB LRepairUI   ' repair-wait UI loop (FUN_01a2_bab9)
 GOSUB LResetSel   ' reset target display to SKUA (L2d76)
 GOTO LGameLoop    ' back to main game loop (L1e78)
-                             **************************************************************
-                             *                          FUNCTION                          *
-                             **************************************************************
 ' Self-attack: player aimed DEL *.* (erase) at own machine (SKUA)
 ' Adds 45 s to existing repair timer (or starts fresh 45 s if already expired)
 LSelfErase:   ' LSelfErase=L90f7 -- Player erased own directory (DEL *.* on SKUA)
@@ -1608,9 +1608,8 @@ LFinalTally:   ' Laba9 -- final score tally, history update, game reset
   ' Score history arrays (indexed by Fa4d6! = player/session slot)
   ' Array A (DS base 0x9e2a): Fa4da! = high score for this slot
   ' Array B (DS base 0xa15a): Fa4de! = game count for this slot
-  Fa4da! = 0   ' = best score read from history array[INT(Fa4d6!)]
-  Fa4de! = 0   ' = game count read from history array[INT(Fa4d6!)]
-  ' (Note: actual array reads use [SI+0x9c92] indirect not shown here)
+  Fa4da! = hist_hiScore!(INT(slotNum!))   ' DS:0x9e2a + slot*4
+  Fa4de! = hist_games!(INT(slotNum!))    ' DS:0xa15a + slot*4
   IF score! < 60 THEN Fa452! = 1   ' self-format or low-score penalty flag
   ' apply score bonuses/penalties
   IF Fa44e! = 1 THEN score! = score! + 2000   ' +2000 victory bonus
@@ -1621,7 +1620,10 @@ LFinalTally:   ' Laba9 -- final score tally, history update, game reset
   Fa4e2! = Fa4e2! * Fa4de!
   Fa4de! = Fa4de! + 1
   Fa4e2! = (Fa4e2! + score!) / Fa4de!
-  ' (Note: updated Fa4da!, Fa4de!, Fa4e2! written back to arrays in original)
+  ' write updated history back to arrays before saving
+  hist_hiScore!(INT(slotNum!)) = Fa4da!
+  hist_games!(INT(slotNum!)) = Fa4de!
+  hist_avg!(INT(slotNum!)) = Fa4e2!
   GOSUB Lb207          ' display score table (FUN_01a2_b207)
   GOSUB LSavePlayers   ' save player history to "players" file (FUN_01a2_b029)
   GOSUB Lbca2          ' end of game handler (FUN_01a2_bca2, not yet decompiled)
@@ -1636,7 +1638,47 @@ LFinalTally:   ' Laba9 -- final score tally, history update, game reset
     NEXT Fa4e6!
   NEXT dmgType!
   cmdBuf$ = ""   ' clear command buffer (Sa46e$=Sa46e$)
-  GOTO L01a3     ' restart game (LAB_01a2_01a3 = game start)
+  GOTO LIntroGfx   ' restart game (LAB_01a2_01a3 = LIntroGfx)
+' ============================================================
+' FUN_01a2_ae3d = LLoadPlayers -- read player history from "players" file
+' Called ONCE from ENTRY (01a2:01a0), immediately after RANDOMIZE TIMER,
+'   before the L01a3 game-restart loop begins.
+' Reads numPlayers! player slots; stores history into in-memory arrays
+'   at DS:0x9c92 + per-field offset + INT(loopK!)*4.
+' DS:0xb8fa = string descriptor {len=7, ptr=0xb8fe} = "players"
+' Symmetric to LSavePlayers; handles missing file gracefully (first run).
+' ============================================================
+LLoadPlayers:   ' LLoadPlayers=Lae3d
+  namesBuf$ = ""
+  ON ERROR GOTO LLoadPlayersErr
+  OPEN "players" FOR INPUT AS #1
+  ON ERROR GOTO 0
+  INPUT #1, numPlayers!   ' total player history slots (DS:0xa4ee)
+  playersLim! = numPlayers!   ' save loop limit (DS:0xa4f2)
+  ' NOTE: loopK! (=F003a!) reused as player-slot index here -- not a timing loop
+  FOR loopK! = 1 TO playersLim!
+    INPUT #1, compName$   ' player machine name
+    namesBuf$ = namesBuf$ + compName$         ' accumulate all names (DS:0xa4f6)
+    hist_namelen!(INT(loopK!)) = CSNG(LEN(compName$))   ' DS:0x9d5e+slot*4
+    INPUT #1, histHiSc!
+    hist_hiScore!(INT(loopK!)) = histHiSc!   ' DS:0x9e2a+slot*4
+    INPUT #1, Fa4de!
+    hist_games!(INT(loopK!)) = Fa4de!        ' DS:0xa15a+slot*4
+    INPUT #1, Fa4fe!
+    hist_f4!(INT(loopK!)) = Fa4fe!           ' DS:0x9ef6+slot*4
+    INPUT #1, Fa502!
+    hist_f5!(INT(loopK!)) = Fa502!           ' DS:0x9fc2+slot*4
+    INPUT #1, Fa4e2!
+    hist_avg!(INT(loopK!)) = Fa4e2!          ' DS:0xa08e+slot*4
+  NEXT loopK!
+  CLOSE #1
+  GOTO LLoadPlayersDone
+LLoadPlayersErr:   ' file not found on first run -- start fresh
+  numPlayers! = 0
+  namesBuf$ = ""
+  RESUME LLoadPlayersDone
+LLoadPlayersDone:
+  RETURN
 ' ============================================================
 ' FUN_01a2_b029 = LSavePlayers -- write player history to "players" file
 ' Called from LFinalTally (01a2:ad87) after each game ends.
@@ -1788,7 +1830,6 @@ Lb207:   ' Lb207=Lb207
   LINE (0,40)-(640,40), 14           ' yellow separator under header (y=40)
   LINE (2,422)-(637,458), 14, B      ' yellow border around champion area
   RETURN
-                             **************************************************************
 ' ============================================================
 ' FUN_01a2_b786 = Lb786 -- select or register player for this game session
 ' Called from: LIntroText (01a2:13e9); retry via b80c and b9ae self-JMPs
@@ -1887,16 +1928,6 @@ Lb786New:   ' LAB_01a2_b907
   ' Redisplay the score table then return to our caller via Lb207's RETURN
   ' (JMP b207 = tail-call: Lb207 executes and its RETURN pops back to our caller)
   GOTO Lb207
-                             **************************************************************
-                             *                          FUNCTION                          *
-                             **************************************************************
-LRepairUI:   ' LRepairUI=Lbab9 -- repair-wait UI: error msg, computer animation, unlock msg (FUN_01a2_bab9 not yet decompiled)
-                             undefined __cdecl16near FUN_01a2_bab9()
-                               assume DS = 0x1997
-             undefined         <UNASSIGNED>   <RETURN>
-                             FUN_01a2_bab9                                   XREF[3]:     FUN_01a2_902f:01a2:90a4(c),
-                                                                                          FUN_01a2_90ad:01a2:90ee(c), 
-                                                                                          FUN_01a2_90f7:01a2:9167(c)  
 LRepairUI:   ' LRepairUI=Lbab9 -- wait for player lockout timer, animating all computers
   LOCATE 27, 6
   COLOR 13

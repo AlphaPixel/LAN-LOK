@@ -4,6 +4,59 @@ This file records decompilation sessions in reverse-chronological order.
 
 ---
 
+## Session 19 -- 2026-05-30 (QB64-PE compilation fixes: label resolution + LLoadPlayers)
+
+**MILESTONE: lanlokre.bas compiles cleanly to lanlokre.exe (QB64-PE, exit 0).**
+
+### Work done this session
+
+#### Inserted LLoadPlayers (FUN_01a2_ae3d = Lae3d)
+- tools/load_players_basic.txt had the structure but was missing array stores and never inserted
+- Written from scratch: opens "players" FOR INPUT, reads numPlayers!, loops all player slots
+- Stores all 6 fields per slot: hist_namelen!, hist_hiScore!, hist_games!, hist_f4!, hist_f5!, hist_avg!
+- Added ON ERROR GOTO handler for missing file (first run): sets numPlayers!=0, namesBuf$=""
+- Placed before LSavePlayers (after LFinalTally's GOTO LIntroGfx)
+
+#### Fixed LFinalTally placeholder reads/writes
+- Lines 1611-1612: replaced `Fa4da! = 0` / `Fa4de! = 0` placeholders with actual reads:
+  - `Fa4da! = hist_hiScore!(INT(slotNum!))` -- DS:0x9e2a + slot*4
+  - `Fa4de! = hist_games!(INT(slotNum!))` -- DS:0xa15a + slot*4
+- Added write-back before GOSUB LSavePlayers:
+  - `hist_hiScore!(INT(slotNum!)) = Fa4da!`
+  - `hist_games!(INT(slotNum!)) = Fa4de!`
+  - `hist_avg!(INT(slotNum!)) = Fa4e2!`
+
+#### Resolved 16 stale hex-address label references
+QB64-PE surfaced every GOSUB/GOTO that used the original hex address name
+instead of the renamed semantic label. All fixed:
+
+| Old reference | Fixed to | Occurrences |
+|---------------|----------|-------------|
+| GOSUB Lae3d | GOSUB LLoadPlayers | 1 |
+| GOSUB L637d | GOSUB LAlAnim | 3 |
+| GOSUB L9170 | GOSUB LVictory | 2 |
+| GOSUB L56c4 | GOSUB LAtkFmt | 2 |
+| GOSUB L3c90 | GOSUB LPause263b | 2 |
+| GOSUB F0bcb | GOSUB LDrawArrow | 1 (typo: F vs L prefix) |
+| GOTO La58f | GOTO LGameEnd | 1 |
+| GOTO Laba9 | GOTO LFinalTally | 2 |
+| GOTO L902f | GOTO LSelfPJam | 1 |
+| GOTO L90ad | GOTO LSelfLock | 1 |
+| GOTO L90f7 | GOTO LSelfErase | 1 |
+| GOTO L9c28 | GOTO LLossScreen | 1 |
+| GOTO L01a3 | GOTO LIntroGfx | 1 |
+
+### Compilation result
+- `qb64pe.exe -z lanlokre.bas` -- exit 0 (syntax clean)
+- `qb64pe.exe -x lanlokre.bas -o lanlokre.exe` -- exit 0 (full compile)
+- Output: `lanlokre.exe` (4,094,976 bytes)
+
+### Next steps
+- Manual gameplay testing (run lanlokre.exe, verify all game paths work)
+- Commit (with user approval)
+
+---
+
 ## Session 18 — 2026-05-30 (Lb207 / Lb786 / LRepairUI / Lbca2: player UI + end-of-game)
 
 **MILESTONE: 100% decompiled — 0 raw ASM lines remaining.**
