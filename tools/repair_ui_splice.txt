@@ -1,0 +1,30 @@
+LRepairUI:   ' LRepairUI=Lbab9 -- wait for player lockout timer, animating all computers
+  LOCATE 27, 6
+  COLOR 13
+  PRINT lockMsg$   ' Sa4c6$; lockout error msg (set by caller before GOSUB)
+LRepairWait:   ' LAB_01a2_baec -- outer loop: repeat until repairEnd! expires
+  FOR compI! = 1 TO 10
+    drawX! = compStat!(compI!, 4)        ' X screen coord (col j=4, offset 0xb0)
+    drawY! = compStat!(compI!, 3)        ' Y screen coord (col j=3, offset 0x84)
+    IF compStat!(compI!, 1) = 0 THEN    ' col j=1, offset 0x2c: 0 = undamaged (OK)
+      GOSUB LAnimDmg                     ' animate healthy computer screen
+    ELSE                                 ' damaged -- check if Al's repair time has elapsed
+      curTime! = TIMER
+      alTarget! = compI!
+      IF compStat!(compI!, 2) < curTime! THEN GOSUB LAlFix   ' col j=2 repair due time
+    END IF
+  NEXT compI!
+  IF TIMER < repairEnd! THEN GOTO LRepairWait   ' JNC bc01: exit when TIMER >= repairEnd!
+
+  ' Lockout expired: alert tone, display ready message, reset input buffer
+  SOUND 3000, 4
+  LOCATE 27, 6
+  COLOR 2
+  PRINT rstMsg$   ' Sa4ca$; ready/OK message (set by caller before GOSUB)
+  cmdBuf$ = ""    ' Sa46e$; clear command input accumulator
+  GOSUB LPause263b
+  GOSUB LPause263b
+  GOSUB LPause263b
+  LOCATE 27, 6
+  PRINT "                                           "   ' 43 spaces (DS:0xba96) -- clear msg row
+  RETURN

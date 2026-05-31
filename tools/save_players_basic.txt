@@ -1,0 +1,34 @@
+' ============================================================
+' FUN_01a2_b029 = LSavePlayers -- write player history to "players" file
+' Called from LFinalTally (01a2:ad87) after each game ends.
+' Symmetric to LLoadPlayers: reads in-memory hist_* arrays -> PRINT #1 to file.
+' DS:0xb8fa = "players"; OPEN mode arg=2 (OUTPUT), vs mode=1 (INPUT) in LLoadPlayers.
+' SUB_0e71_764b(1) + SUB_0e71_7864 = PRINT #1 channel setup before each value.
+' SUB_0e71_7fee = MID$() -- extract substring from namesBuf$
+' Note: hist_namelen!, hist_hiScore!, hist_games!, hist_f4!, hist_f5!, hist_avg!
+'   are unnamed QB arrays in DS; DIM statements are in ENTRY (raw ASM, not yet decompiled)
+' ============================================================
+LSavePlayers:   ' LSavePlayers=Lb029
+  ' OPEN "players" FOR OUTPUT AS #1
+  ' (SUB_0e71_4226: 0xb8fa="players" desc, type=1, 0xffff, mode=2)
+  OPEN "players" FOR OUTPUT AS #1
+  PRINT #1, numPlayers!   ' write slot count first (DS:0xa4ee=16)
+  namePos! = 1            ' start position in namesBuf$ for MID$ extraction (DS:0xa506)
+  saveLim! = numPlayers!  ' loop limit (DS:0xa50a = copy of numPlayers!)
+  ' NOTE: loopK! (=F003a!) reused as player-slot write index below
+  FOR loopK! = 1 TO saveLim!
+    ' get name length from hist_namelen! array: DS:0x9d5e + INT(loopK!)*4
+    nameLen! = hist_namelen!(INT(loopK!))   ' store in DS:0xa50e
+    ' extract this slot's name from the accumulated namesBuf$ string
+    compName$ = MID$(namesBuf$, INT(namePos!), INT(nameLen!))
+    namePos! = namePos! + nameLen!           ' advance to next name
+    PRINT #1, compName$                      ' write player name
+    PRINT #1, hist_hiScore!(INT(loopK!))     ' high score  DS:0x9e2a+slot*4
+    PRINT #1, hist_games!(INT(loopK!))       ' game count  DS:0xa15a+slot*4
+    PRINT #1, hist_f4!(INT(loopK!))          ' field 4     DS:0x9ef6+slot*4
+    PRINT #1, hist_f5!(INT(loopK!))          ' field 5     DS:0x9fc2+slot*4
+    PRINT #1, hist_avg!(INT(loopK!))         ' running avg DS:0xa08e+slot*4
+  NEXT loopK!
+  ' CLOSE #1  (SUB_0e71_4452 with args 1, 1)
+  CLOSE #1
+  RETURN

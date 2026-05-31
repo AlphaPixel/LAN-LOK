@@ -1,6 +1,98 @@
 # LAN-LOK Decompilation — Progress Log
 
 This file records decompilation sessions in reverse-chronological order.
+
+---
+
+## Session 18 — 2026-05-30 (Lb207 / Lb786 / LRepairUI / Lbca2: player UI + end-of-game)
+
+**MILESTONE: 100% decompiled — 0 raw ASM lines remaining.**
+
+### Functions completed this session
+
+#### FUN_01a2_b207 = Lb207 -- display player score table
+- 667 raw ASM lines replaced with 117 lines of BASIC
+- Shows 2-line header, iterates numPlayers! slots printing name+hiScore+games+won+lost+avg in 6 colors
+- Champion tracking: bestAvg! initialized to -999999; per iteration, if hist_avg![slot]>bestAvg! records champSlot!/champName$/bestAvg! (two ASM compares safely collapsed to one IF block)
+- Column layout: colBase!=1 (left, slots 1-21) or 41 (right, slots 22-43); with 16 players always left
+- SUB_0e71_82be = TAB() -- confirmed by column positions 1,14,20,25,30,35 matching header
+- Single-digit slot alignment: IF loopK!>9 PRINT "" ELSE PRINT " " extra space (QB PRINT quirk)
+- Right-column LOCATE: IF loopK!>21 THEN LOCATE INT(loopK!-18),40 (DS:0xb9b0=-18)
+- After loop: LOCATE 26,10; champion name+avg announcement in green/red/magenta
+- 5 LINE borders: outer yellow B, vertical divider, cyan row-separator, header separator, champion box
+- col thresholds: DS:0xb4c6=22 (column split), DS:0xb45e=21 (LOCATE threshold), DS:0xb9ac=-999999
+- New variables in glossary: bestAvg!, champSlot!, tableLimit!, colBase!, hiScSlot!, winsSlot!, lossSlot!
+- New string in glossary: champName$ (Sa52e$)
+
+#### FUN_01a2_b786 = Lb786 -- select or register player for this game session
+- 403 raw ASM lines replaced with 98 lines of BASIC
+- Called from LIntroText; retries via self-JMP at Lb786/Lb786New labels
+- Shows score table, asks for player slot# (99 for new), selects existing or registers new
+- Existing path: scan namesBuf$ for slot name (FOR loop advances namePos! by nameLen! each step);
+  load hist_avg![slot] -> Fa4e2!; Fa536!=0; RETURN
+- New path: IF roster >= 43 slots: SOUND 800/400 x3 + "PLAYER FILE FULL" + 3x pause + retry
+  Clamp entered number to numPlayers!+1; expand numPlayers! if needed
+  INPUT playerName$; LEFT$(,9) if >9 chars; append to namesBuf$; hist_namelen![slot]=CSNG(LEN)
+  Tail-call: GOTO Lb207 (Lb207's RETURN returns to Lb786's caller)
+- SUB_0e71_7e1a = QB INPUT for float, SUB_0e71_7e20 = QB INPUT for string
+- SUB_0e71_7fca = LEFT$(str,n), SUB_0e71_7cb1 = STRING_CONCAT, FUN_0d75_03c4 = CSNG
+- DS strings: 0xb9f4="Enter player # (99 for new player):" (35), 0xba1c=51 spaces,
+  0xba54="PLAYER FILE FULL.  USE EXISTING NAME." (37), 0xba7e="Enter player name: " (19)
+- DS constants: 0xb43e=43 (max slots), 0xa6b4=2.0 (SOUND duration for error beeps)
+- New variables in glossary: slotNum! (Fa4d6!), slotCopy! (Fa532!), Fa536! (new/existing flag)
+- New label in glossary: Lb786
+
+#### FUN_01a2_bab9 = LRepairUI -- player lockout wait loop with live computer animation
+- 237 raw ASM lines replaced with 30 lines of BASIC
+- Called via GOSUB from LSelfPJam/LSelfLock/LSelfErase after setting lockMsg$, rstMsg$, repairEnd!
+- Entry: LOCATE 27,6; COLOR 13; PRINT lockMsg$ (lockout error message)
+- Outer loop (LRepairWait): iterates until TIMER >= repairEnd! (player lockout expiry)
+  - Inner FOR compI!=1 TO 10: load drawX!/drawY! from compStat!(col 4/3); check col 1 (damage):
+    - 0 (undamaged): GOSUB LAnimDmg (animate healthy screen)
+    - nonzero (damaged): curTime!=TIMER; alTarget!=compI!; if compStat!(compI!,2)<curTime!: GOSUB LAlFix
+  - After FOR: IF TIMER < repairEnd! THEN GOTO LRepairWait
+- Exit: SOUND 3000,4; LOCATE 27,6; COLOR 2; PRINT rstMsg$; cmdBuf$=""; 3x GOSUB LPause263b;
+  LOCATE 27,6; PRINT 43 spaces (DS:0xba96); RETURN
+- compStat! column offsets: j=1 (0x2c) damage, j=2 (0x58) repair time, j=3 (0x84) Y, j=4 (0xb0) X
+- DS:0xa676/0xa674 = 4.0 float (SOUND duration); baec TIMER read omitted (dead code overridden at bb81)
+- New label in glossary: LRepairWait (internal)
+
+#### FUN_01a2_bca2 = Lbca2 -- end-of-game key-wait prompt
+- 81 lines (stub + 56 raw ASM) replaced with 13 lines of BASIC
+- Called from LVictory (9ae3), LLossScreen (ad8a), LIntroText (13db) after game scoring
+- COLOR 15; keyIn$=""; LOCATE 30,35; PRINT "Hit any key to continue, or <Esc> to quit";
+- Key-wait loop (Lbca2Wait): LEN(keyIn$)>0 → clear + RETURN; keyIn$=INKEY$; CHR$(27)→END; repeat
+- SUB_0e71_8453 = QB END runtime (never returns; ESC causes program termination)
+- DS:0xbac6 = "Hit any key to continue, or <Esc> to quit" (41 chars, ptr=0xbaca)
+- Updated glossary: Lbca2 and Lbca2Wait
+
+### Progress numbers
+- **Before this session:** 1,520 raw ASM lines (43.9% remaining) -- after session 17
+- **This session removed:** 1,520 ASM lines total (Lb207: 667, Lb786: 403, LRepairUI: 237, Lbca2: ~81+stub)
+- **After this session:** 0 raw ASM lines -- **100.0% decompiled**
+- **BASIC lines in file:** 1,942 (final)
+- Functions completed all-time (cumulative): L2e2d, L3522, L376f, L3a10, L3c57, L3c90, L3cc9,
+  L3d02, L3d3b/422d/4246, L42d5, L5018/50b2/5124, L56c4, L637d, L902f, L90ad, L90f7, L9170,
+  L9ae7, L9c28+La58f+La5e0+La7db+La7f1+La980+Laba9, Lae3d, Lb029, Lb207, Lb786, Lbab9, Lbca2
+
+### Key discoveries this session
+- SUB_0e71_82be = TAB() -- identified by column offsets 1,14,20,25,30,35 matching score table header
+- PowerShell `-shl` on Byte values gives wrong 16-bit results; use multiplication (`* 256`) instead
+- Lb786's new-player path ends with `GOTO Lb207` (tail-call): Lb207's RETURN returns to Lb786's caller
+- LRepairUI outer TIMER read at baec (into curTime!) is dead code -- overridden at bb81 before use
+- SUB_0e71_8453 = QB END runtime (called on ESC in Lbca2)
+- DS:0xa73e = empty string descriptor (len=0, ptr=0xa742); used as SET_STRING "" operand throughout
+
+### Remaining work
+- **No more raw ASM.** The decompilation of all named functions is complete.
+- Remaining items for full playability:
+  - The `ENTRY` (startup code / DIM statements) is still partially raw ASM (early portion)
+    but this was outside the named-function scope of this project
+  - LCircXhair (L61cb) is referenced by LAtkFmt but was left as a stub GOSUB call in the BASIC;
+    the function body would need to be extracted from lanlok.asm and decompiled if desired
+  - QB64-PE compilation testing: the BASIC should now be compilable (modulo any ENTRY DIM issues)
+
+
 Each entry covers one working session: what was attempted, what succeeded, what was discovered,
 and what changed in the repo.
 

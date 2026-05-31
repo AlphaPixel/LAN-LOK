@@ -1,4 +1,4 @@
-﻿DIM compStat!(10,5)     ' compStat!=Fa246!  -- computer status array (10 computers x 5 attrs)
+DIM compStat!(10,5)     ' compStat!=Fa246!  -- computer status array (10 computers x 5 attrs)
 
 ' ---------------------------------------------------------------------------
 ' SYMBOL RENAMING GLOSSARY
@@ -46,9 +46,27 @@
 '   Fa452!      =Fa452!   penalty flag: set to 1 if FORMAT C: self-attack or score<60; causes -2000
 '   Fa4d2!      =Fa4d2!   GAME OVER column offset (15 first/format-C game; 0 for subsequent games)
 '   Fa4da!      =Fa4da!   high score read from history array[INT(Fa4d6!)] (LFinalTally)
-'   Fa4de!      =Fa4de!   game count from history array[INT(Fa4d6!)] (LFinalTally running avg)
-'   Fa4e2!      =Fa4e2!   running average score (LFinalTally; avg_n=(avg*(n-1)+score)/n)
+'   Fa4de!      =Fa4de!   game count; read from file in LLoadPlayers / used in LFinalTally avg
+'   Fa4e2!      =Fa4e2!   running avg score; read from file in LLoadPlayers / computed LFinalTally
 '   Fa4e6!      =Fa4e6!   compStat! column reset iterator (inner loop 1-4 in LFinalTally)
+'   numPlayers! =Fa4ee!   total player history slots in "players" file (LLoadPlayers)
+'   playersLim! =Fa4f2!   loop limit copy of numPlayers! (LLoadPlayers)
+'   histHiSc!   =Fa4fa!   high score read from "players" file for current slot (LLoadPlayers)
+'   Fa4fe!      =Fa4fe!   history field 4 per slot ("won" count; read in LLoadPlayers)
+'   Fa502!      =Fa502!   history field 5 per slot ("lost" count; read in LLoadPlayers)
+'   namePos!    =Fa506!   current start position in namesBuf$ for MID$ extraction (LSavePlayers/Lb207)
+'   saveLim!    =Fa50a!   loop limit for save loop (= numPlayers!) (LSavePlayers)
+'   nameLen!    =Fa50e!   current player name length from hist_namelen! array (LSavePlayers/Lb207)
+'   bestAvg!    =Fa512!   running max average seen in Lb207 loop (init -999999; DS:0xb9ac)
+'   champSlot!  =Fa516!   slot index of player with best average (Lb207)
+'   tableLimit! =Fa51a!   Lb207 loop limit (= numPlayers!)
+'   colBase!    =Fa51e!   Lb207 column base: 1 (left, slots<22) or 41 (right, slots>=22)
+'   hiScSlot!   =Fa522!   high score for current Lb207 display slot (hist_hiScore![loopK!])
+'   winsSlot!   =Fa526!   wins count for current Lb207 slot (hist_f4![loopK!])
+'   lossSlot!   =Fa52a!   losses count for current Lb207 slot (hist_f5![loopK!])
+'   slotNum!    =Fa4d6!   player slot number entered at login prompt (Lb786)
+'   slotCopy!   =Fa532!   loop limit copy of slotNum! for name extraction (Lb786)
+'   Fa536!      =Fa536!   new-vs-existing flag: 0=existing player selected; non-0=new (Lb786)
 '
 ' STRING VARIABLES
 '   keyIn$      =Sa242$   INKEY$ keyboard input buffer
@@ -58,6 +76,8 @@
 '   playerName$ =Sa436$   player machine name ("SKUA")
 '   lockMsg$    =Sa4c6$   self-attack error message (shown while computer is locked)
 '   rstMsg$     =Sa4ca$   self-attack restore message (shown when computer is unlocked)
+'   namesBuf$   =Sa4f6$   accumulated player name string (built in LLoadPlayers for display)
+'   champName$  =Sa52e$   current champion player name (set in Lb207 loop; displayed after)
 '
 ' SUBROUTINE LABELS (decompiled; undecompiled stubs keep hex names)
 '   LIntroGfx   =L01a3   graphical intro entry point
@@ -108,7 +128,12 @@
 '   LNotEnoughPts=La7f1  NOT ENOUGH POINTS flash x3 (subsequent games only)
 '   LYouLose    =La980   YOU LOSE WEENIE flash x4 (first game and low-score path)
 '   LFinalTally =Laba9   final score tally, history update, compStat! reset, GOTO L01a3
-'   Lbca2       =Lbca2   end-of-game handler (called from LVictory, not yet decompiled)
+'   LLoadPlayers=Lae3d   read player history from "players" file into in-memory arrays (startup)
+'   LSavePlayers=Lb029   write player history from in-memory arrays to "players" file (end-of-game)
+'   Lb207       =Lb207   display player score table (name+hiScore+games+won+lost+avg, champion)
+'   Lb786       =Lb786   player select/register: INPUT slot#, look up or add new player
+'   Lbca2       =Lbca2   end-of-game: "hit any key" prompt at row 30 col 35, ESC quits
+'   Lbca2Wait   =Lbca2   key-wait loop (internal label in Lbca2)
 ' ---------------------------------------------------------------------------
 
 ' Calibration block removed -- QB64 runs too fast for the original timing loop.
@@ -1597,9 +1622,9 @@ LFinalTally:   ' Laba9 -- final score tally, history update, game reset
   Fa4de! = Fa4de! + 1
   Fa4e2! = (Fa4e2! + score!) / Fa4de!
   ' (Note: updated Fa4da!, Fa4de!, Fa4e2! written back to arrays in original)
-  GOSUB Lb207   ' display score table (FUN_01a2_b207)
-  GOSUB Lb029   ' display end screen (FUN_01a2_b029)
-  GOSUB Lbca2   ' end of game handler
+  GOSUB Lb207          ' display score table (FUN_01a2_b207)
+  GOSUB LSavePlayers   ' save player history to "players" file (FUN_01a2_b029)
+  GOSUB Lbca2          ' end of game handler (FUN_01a2_bca2, not yet decompiled)
   ' reset victory and penalty flags for next game
   Fa44e! = 0   ' DS:0xa64c = 0
   Fa452! = 0   ' DS:0xa64c = 0
@@ -1612,1535 +1637,256 @@ LFinalTally:   ' Laba9 -- final score tally, history update, game reset
   NEXT dmgType!
   cmdBuf$ = ""   ' clear command buffer (Sa46e$=Sa46e$)
   GOTO L01a3     ' restart game (LAB_01a2_01a3 = game start)
+' ============================================================
+' FUN_01a2_b029 = LSavePlayers -- write player history to "players" file
+' Called from LFinalTally (01a2:ad87) after each game ends.
+' Symmetric to LLoadPlayers: reads in-memory hist_* arrays -> PRINT #1 to file.
+' DS:0xb8fa = "players"; OPEN mode arg=2 (OUTPUT), vs mode=1 (INPUT) in LLoadPlayers.
+' SUB_0e71_764b(1) + SUB_0e71_7864 = PRINT #1 channel setup before each value.
+' SUB_0e71_7fee = MID$() -- extract substring from namesBuf$
+' Note: hist_namelen!, hist_hiScore!, hist_games!, hist_f4!, hist_f5!, hist_avg!
+'   are unnamed QB arrays in DS; DIM statements are in ENTRY (raw ASM, not yet decompiled)
+' ============================================================
+LSavePlayers:   ' LSavePlayers=Lb029
+  ' OPEN "players" FOR OUTPUT AS #1
+  ' (SUB_0e71_4226: 0xb8fa="players" desc, type=1, 0xffff, mode=2)
+  OPEN "players" FOR OUTPUT AS #1
+  PRINT #1, numPlayers!   ' write slot count first (DS:0xa4ee=16)
+  namePos! = 1            ' start position in namesBuf$ for MID$ extraction (DS:0xa506)
+  saveLim! = numPlayers!  ' loop limit (DS:0xa50a = copy of numPlayers!)
+  ' NOTE: loopK! (=F003a!) reused as player-slot write index below
+  FOR loopK! = 1 TO saveLim!
+    ' get name length from hist_namelen! array: DS:0x9d5e + INT(loopK!)*4
+    nameLen! = hist_namelen!(INT(loopK!))   ' store in DS:0xa50e
+    ' extract this slot's name from the accumulated namesBuf$ string
+    compName$ = MID$(namesBuf$, INT(namePos!), INT(nameLen!))
+    namePos! = namePos! + nameLen!           ' advance to next name
+    PRINT #1, compName$                      ' write player name
+    PRINT #1, hist_hiScore!(INT(loopK!))     ' high score  DS:0x9e2a+slot*4
+    PRINT #1, hist_games!(INT(loopK!))       ' game count  DS:0xa15a+slot*4
+    PRINT #1, hist_f4!(INT(loopK!))          ' field 4     DS:0x9ef6+slot*4
+    PRINT #1, hist_f5!(INT(loopK!))          ' field 5     DS:0x9fc2+slot*4
+    PRINT #1, hist_avg!(INT(loopK!))         ' running avg DS:0xa08e+slot*4
+  NEXT loopK!
+  ' CLOSE #1  (SUB_0e71_4452 with args 1, 1)
+  CLOSE #1
+  RETURN
+' ============================================================
+' FUN_01a2_b207 = Lb207 -- display player score table
+' Called from: LIntroText (01a2:13e6), LFinalTally (01a2:ad84), FUN_01a2_b786 (01a2:baa9)
+' Shows a 2-row header, loops numPlayers! slots printing name+score+games+won+lost+avg,
+' then prints the champion line and draws border LINEs.
+' SUB_0e71_82be = TAB() -- positions cursor to column n before each field
+' FUN_0d75_0449 = QB float display pass-through (translated as PRINT directly)
+' Column layout (colBase!=1 for left, 41 for right -- all 16 players use left here):
+'   col colBase!     : slot# (bright white)
+'   col colBase!+13  : hi-score / max score (cyan COLOR 9)
+'   col colBase!+19  : games played (#, white COLOR 7)
+'   col colBase!+24  : won (hist_f4!, magenta COLOR 13)
+'   col colBase!+29  : lost (hist_f5!, light-red COLOR 12)
+'   col colBase!+34  : avg score / mean (yellow COLOR 14)  <-- ends with PRINT (newline)
+' Header strings (DS):
+'   0xb906 = " #  name      max   |---games---| mean   #  name      max   |---games---| mean"
+'   0xb958 = "         score  #   won  lost score               score  #   won  lost score"
+' Champion line strings: 0xb9ba="Current champion player is " / 0xb9da=", with a mean score of"
+' ============================================================
+Lb207:   ' Lb207=Lb207
+  namePos! = 1    ' reset start position in namesBuf$ (Fa506!, DS:0xa506)
+  COLOR 3         ' cyan header text
+  LOCATE 1, 1
+  PRINT " #  name      max   |---games---| mean   #  name      max   |---games---| mean"
+  PRINT "         score  #   won  lost score               score  #   won  lost score"
+  PRINT ""        ' blank separator line (second empty PRINT from ASM)
+
+  bestAvg! = -999999  ' Fa512! -- best avg seen (init very low; DS:0xb9ac=-999999)
+  champSlot! = 0      ' Fa516! -- slot of best-avg player (DS:0xa64c=0)
+  tableLimit! = numPlayers!   ' Fa51a! -- loop limit
+  ' NOTE: loopK! (=F003a!) reused as player-slot loop counter below
+  FOR loopK! = 1 TO tableLimit!
+
+    ' Determine column base: left (1) for slots < 22, right (41) for slots >= 22.
+    ' With numPlayers!=16 all slots use colBase!=1 (right path never triggers).
+    IF loopK! < 22 THEN   ' DS:0xb4c6 = 22
+      colBase! = 1        ' Fa51e! (DS:0xa550=1)
+    ELSE
+      colBase! = 41       ' Fa51e! (DS:0xb3fa=41)
+    END IF
+
+    ' Read history fields for this slot into temps
+    hiScSlot! = hist_hiScore!(INT(loopK!))   ' Fa522! DS:0xa522  (stride 0x198)
+    winsSlot! = hist_f4!(INT(loopK!))        ' Fa526! DS:0xa526  (stride 0x264 -- "won")
+    lossSlot! = hist_f5!(INT(loopK!))        ' Fa52a! DS:0xa52a  (stride 0x330 -- "lost")
+    Fa4de! = hist_games!(INT(loopK!))        ' games  DS:0xa4de  (stride 0x4c8)
+    Fa4e2! = hist_avg!(INT(loopK!))          ' avg    DS:0xa4e2  (stride 0x3fc)
+
+    ' Track champion: if this slot's avg beats the running best, update all three
+    ' at once (ASM splits into two separate compares with name-save in between, but
+    ' the condition is identical both times so collapsing is safe).
+    IF Fa4e2! > bestAvg! THEN   ' first compare: DS:0xa512 vs DS:0xa4e2
+      champSlot! = loopK!       ' Fa516! -- record who is best
+      champName$ = MID$(namesBuf$, INT(namePos!), INT(nameLen!))   ' Sa52e$ DS:0xa52e
+      bestAvg! = Fa4e2!         ' Fa512! -- raise the bar (second compare in ASM)
+    END IF
+
+    ' For right-column slots (>21 players): LOCATE to correct row on the right side.
+    ' col=40 puts cursor just left of colBase!=41; TAB(41) below moves it there.
+    IF loopK! > 21 THEN   ' DS:0xb45e = 21
+      LOCATE INT(loopK! - 18), 40   ' row=loopK!+[0xb9b0=-18]; col=0x28=40
+    END IF
+
+    ' Read this slot's name length from hist_namelen! array (DS:0x9d5e stride 0xcc)
+    nameLen! = hist_namelen!(INT(loopK!))   ' Fa50e! DS:0xa50e
+
+    ' Print slot index (bright white) at column colBase! using TAB positioning
+    COLOR 15
+    PRINT TAB(INT(colBase!)); loopK!;   ' slot number; QB adds leading+trailing space
+    ' Alignment: single-digit slots (1-9) get one extra space so the name column
+    ' lines up regardless of slot-number width. DS:0xaf94=9
+    IF loopK! > 9 THEN
+      PRINT "";   ' no extra space for two-digit slot numbers
+    ELSE
+      PRINT " ";  ' extra space after single-digit slot number
+    END IF
+
+    ' Print player name (bright green) using MID$ into namesBuf$
+    COLOR 10
+    PRINT MID$(namesBuf$, INT(namePos!), INT(nameLen!));
+
+    ' Print numeric score columns with color coding
+    COLOR 9                                      ' light blue -- max/hi score
+    PRINT TAB(INT(13 + colBase!)); hiScSlot!;    ' col 14 left / 54 right (DS:0xa678=13)
+    COLOR 7                                      ' white -- games count
+    PRINT TAB(INT(19 + colBase!)); Fa4de!;       ' col 20 left / 60 right (DS:0xb43a=19)
+    COLOR 13                                     ' light magenta -- won (hist_f4)
+    PRINT TAB(INT(24 + colBase!)); winsSlot!;    ' col 25 left / 65 right (DS:0xb456=24)
+    COLOR 12                                     ' light red -- lost (hist_f5)
+    PRINT TAB(INT(29 + colBase!)); lossSlot!;    ' col 30 left / 70 right (DS:0xb4ca=29)
+    COLOR 14                                     ' yellow -- average/mean score
+    PRINT TAB(INT(34 + colBase!)); Fa4e2!        ' col 35 left / 75 right; NEWLINE ends row
+
+    namePos! = namePos! + nameLen!   ' advance to next name in namesBuf$ (DS:0xa506)
+  NEXT loopK!
+
+  ' After loop: print champion announcement line
+  ' DS:0xb9ba = "Current champion player is "
+  ' Sa52e$ = champName$ (set in loop when best avg was updated)
+  ' DS:0xb9da = ", with a mean score of"
+  LOCATE 26, 10   ' row=0x1a=26, col=0xa=10
+  COLOR 2         ' green
+  PRINT "Current champion player is ";
+  COLOR 12        ' light red -- champion name
+  PRINT champName$;   ' Sa52e$ DS:0xa52e
+  COLOR 2
+  PRINT ", with a mean score of";
+  COLOR 13        ' light magenta -- champion avg
+  PRINT bestAvg!  ' Fa512!; PRINT_float_newline ends with newline
+
+  ' Draw decorative borders around the table
+  LINE (0,0)-(639,460), 14, B        ' yellow outer border (full-screen height)
+  LINE (320,0)-(320,392), 14         ' yellow vertical center divider (2-column layout)
+  LINE (2,392)-(637,420), 11, B      ' cyan border below player list
+  LINE (0,40)-(640,40), 14           ' yellow separator under header (y=40)
+  LINE (2,422)-(637,458), 14, B      ' yellow border around champion area
+  RETURN
                              **************************************************************
-                             *                          FUNCTION                          *
-                             **************************************************************
-                             undefined __cdecl16near FUN_01a2_ae3d()
-                               assume DS = 0x1997
-             undefined         <UNASSIGNED>   <RETURN>
-                             FUN_01a2_ae3d                                   XREF[1]:     ENTRY:01a2:01a0(c)  
-       01a2:ae3d b8 fa b8        MOV        AX,0xb8fa
-       01a2:ae40 50              PUSH       AX
-       01a2:ae41 b8 01 00        MOV        AX,0x1
-       01a2:ae44 50              PUSH       AX
-       01a2:ae45 b8 ff ff        MOV        AX,0xffff
-       01a2:ae48 50              PUSH       AX
-       01a2:ae49 b8 01 00        MOV        AX,0x1
-       01a2:ae4c 50              PUSH       AX
-       01a2:ae4d 9a 26 42        CALLF      SUB_0e71_4226
-                 71 0e
-       01a2:ae52 b8 01 00        MOV        AX,0x1
-       01a2:ae55 50              PUSH       AX
-       01a2:ae56 9a 6c 63        CALLF      SUB_0e71_636c
-                 71 0e
-       01a2:ae5b bb ee a4        MOV        BX,0xa4ee
-       01a2:ae5e 1e              PUSH       DS
-       01a2:ae5f 07              POP        ES
-       01a2:ae60 06              PUSH       ES
-       01a2:ae61 53              PUSH       BX
-       01a2:ae62 9a 1a 7e        CALLF      SUB_0e71_7e1a
-                 71 0e
-       01a2:ae67 9a fc 77        CALLF      SUB_0e71_77fc
-                 71 0e
-       01a2:ae6c 90              NOP
-       01a2:ae6d d9 06 ee a4     FLD        float ptr [0xa4ee]
-       01a2:ae71 90              NOP
-       01a2:ae72 d9 1e f2 a4     FSTP       float ptr [0xa4f2]
-       01a2:ae76 90              NOP
-       01a2:ae77 9b              WAIT
-       01a2:ae78 90              NOP
-       01a2:ae79 d9 06 50 a5     FLD        float ptr { 1.0 }
-       01a2:ae7d e9 81 01        JMP        LAB_01a2_b001
-                             LAB_01a2_ae80                                   XREF[1]:     01a2:b01b(j)  
-       01a2:ae80 b8 01 00        MOV        AX,0x1
-       01a2:ae83 50              PUSH       AX
-       01a2:ae84 9a 6c 63        CALLF      SUB_0e71_636c
-                 71 0e
-       01a2:ae89 b8 32 a4        MOV        AX,0xa432
-       01a2:ae8c 1e              PUSH       DS
-       01a2:ae8d 50              PUSH       AX
-       01a2:ae8e 33 c0           XOR        AX,AX
-       01a2:ae90 50              PUSH       AX
-       01a2:ae91 9a 20 7e        CALLF      SUB_0e71_7e20
-                 71 0e
-       01a2:ae96 9a fc 77        CALLF      SUB_0e71_77fc
-                 71 0e
-       01a2:ae9b b8 32 a4        MOV        AX,0xa432
-       01a2:ae9e 50              PUSH       AX
-       01a2:ae9f 9a 21 7f        CALLF      LEN
-                 71 0e
-       01a2:aea4 9a c4 03        CALLF      FUN_0d75_03c4                                    undefined FUN_0d75_03c4()
-                 75 0d
-       01a2:aea9 90              NOP
-       01a2:aeaa d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:aeae 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:aeb3 d1 e0           SHL        AX,0x1
-       01a2:aeb5 d1 e0           SHL        AX,0x1
-       01a2:aeb7 05 cc 00        ADD        AX,0xcc
-       01a2:aeba 8b f0           MOV        SI,AX
-       01a2:aebc 90              NOP
-       01a2:aebd d9 9c 92 9c     FSTP       float ptr [SI + 0x9c92]
-       01a2:aec1 90              NOP
-       01a2:aec2 9b              WAIT
-       01a2:aec3 b8 f6 a4        MOV        AX,0xa4f6
-       01a2:aec6 50              PUSH       AX
-       01a2:aec7 b8 32 a4        MOV        AX,0xa432
-       01a2:aeca 50              PUSH       AX
-       01a2:aecb 9a b1 7c        CALLF      STRING_CONCAT
-                 71 0e
-       01a2:aed0 50              PUSH       AX
-       01a2:aed1 b8 f6 a4        MOV        AX,0xa4f6
-       01a2:aed4 50              PUSH       AX
-       01a2:aed5 9a 78 7c        CALLF      SET_STRING
-                 71 0e
-       01a2:aeda b8 01 00        MOV        AX,0x1
-       01a2:aedd 50              PUSH       AX
-       01a2:aede 9a 6c 63        CALLF      SUB_0e71_636c
-                 71 0e
-       01a2:aee3 bb fa a4        MOV        BX,0xa4fa
-       01a2:aee6 1e              PUSH       DS
-       01a2:aee7 07              POP        ES
-       01a2:aee8 06              PUSH       ES
-       01a2:aee9 53              PUSH       BX
-       01a2:aeea 9a 1a 7e        CALLF      SUB_0e71_7e1a
-                 71 0e
-       01a2:aeef 9a fc 77        CALLF      SUB_0e71_77fc
-                 71 0e
-       01a2:aef4 90              NOP
-       01a2:aef5 d9 06 fa a4     FLD        float ptr [0xa4fa]
-       01a2:aef9 90              NOP
-       01a2:aefa d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:aefe 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:af03 d1 e0           SHL        AX,0x1
-       01a2:af05 d1 e0           SHL        AX,0x1
-       01a2:af07 05 98 01        ADD        AX,0x198
-       01a2:af0a 8b f0           MOV        SI,AX
-       01a2:af0c 90              NOP
-       01a2:af0d d9 9c 92 9c     FSTP       float ptr [SI + 0x9c92]
-       01a2:af11 90              NOP
-       01a2:af12 9b              WAIT
-       01a2:af13 b8 01 00        MOV        AX,0x1
-       01a2:af16 50              PUSH       AX
-       01a2:af17 9a 6c 63        CALLF      SUB_0e71_636c
-                 71 0e
-       01a2:af1c bb de a4        MOV        BX,0xa4de
-       01a2:af1f 1e              PUSH       DS
-       01a2:af20 07              POP        ES
-       01a2:af21 06              PUSH       ES
-       01a2:af22 53              PUSH       BX
-       01a2:af23 9a 1a 7e        CALLF      SUB_0e71_7e1a
-                 71 0e
-       01a2:af28 9a fc 77        CALLF      SUB_0e71_77fc
-                 71 0e
-       01a2:af2d 90              NOP
-       01a2:af2e d9 06 de a4     FLD        float ptr [0xa4de]
-       01a2:af32 90              NOP
-       01a2:af33 d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:af37 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:af3c d1 e0           SHL        AX,0x1
-       01a2:af3e d1 e0           SHL        AX,0x1
-       01a2:af40 05 c8 04        ADD        AX,0x4c8
-       01a2:af43 8b f0           MOV        SI,AX
-       01a2:af45 90              NOP
-       01a2:af46 d9 9c 92 9c     FSTP       float ptr [SI + 0x9c92]
-       01a2:af4a 90              NOP
-       01a2:af4b 9b              WAIT
-       01a2:af4c b8 01 00        MOV        AX,0x1
-       01a2:af4f 50              PUSH       AX
-       01a2:af50 9a 6c 63        CALLF      SUB_0e71_636c
-                 71 0e
-       01a2:af55 bb fe a4        MOV        BX,0xa4fe
-       01a2:af58 1e              PUSH       DS
-       01a2:af59 07              POP        ES
-       01a2:af5a 06              PUSH       ES
-       01a2:af5b 53              PUSH       BX
-       01a2:af5c 9a 1a 7e        CALLF      SUB_0e71_7e1a
-                 71 0e
-       01a2:af61 9a fc 77        CALLF      SUB_0e71_77fc
-                 71 0e
-       01a2:af66 90              NOP
-       01a2:af67 d9 06 fe a4     FLD        float ptr [0xa4fe]
-       01a2:af6b 90              NOP
-       01a2:af6c d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:af70 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:af75 d1 e0           SHL        AX,0x1
-       01a2:af77 d1 e0           SHL        AX,0x1
-       01a2:af79 05 64 02        ADD        AX,0x264
-       01a2:af7c 8b f0           MOV        SI,AX
-       01a2:af7e 90              NOP
-       01a2:af7f d9 9c 92 9c     FSTP       float ptr [SI + 0x9c92]
-       01a2:af83 90              NOP
-       01a2:af84 9b              WAIT
-       01a2:af85 b8 01 00        MOV        AX,0x1
-       01a2:af88 50              PUSH       AX
-       01a2:af89 9a 6c 63        CALLF      SUB_0e71_636c
-                 71 0e
-       01a2:af8e bb 02 a5        MOV        BX,0xa502
-       01a2:af91 1e              PUSH       DS
-       01a2:af92 07              POP        ES
-       01a2:af93 06              PUSH       ES
-       01a2:af94 53              PUSH       BX
-       01a2:af95 9a 1a 7e        CALLF      SUB_0e71_7e1a
-                 71 0e
-       01a2:af9a 9a fc 77        CALLF      SUB_0e71_77fc
-                 71 0e
-       01a2:af9f 90              NOP
-       01a2:afa0 d9 06 02 a5     FLD        float ptr [0xa502]
-       01a2:afa4 90              NOP
-       01a2:afa5 d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:afa9 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:afae d1 e0           SHL        AX,0x1
-       01a2:afb0 d1 e0           SHL        AX,0x1
-       01a2:afb2 05 30 03        ADD        AX,0x330
-       01a2:afb5 8b f0           MOV        SI,AX
-       01a2:afb7 90              NOP
-       01a2:afb8 d9 9c 92 9c     FSTP       float ptr [SI + 0x9c92]
-       01a2:afbc 90              NOP
-       01a2:afbd 9b              WAIT
-       01a2:afbe b8 01 00        MOV        AX,0x1
-       01a2:afc1 50              PUSH       AX
-       01a2:afc2 9a 6c 63        CALLF      SUB_0e71_636c
-                 71 0e
-       01a2:afc7 bb e2 a4        MOV        BX,0xa4e2
-       01a2:afca 1e              PUSH       DS
-       01a2:afcb 07              POP        ES
-       01a2:afcc 06              PUSH       ES
-       01a2:afcd 53              PUSH       BX
-       01a2:afce 9a 1a 7e        CALLF      SUB_0e71_7e1a
-                 71 0e
-       01a2:afd3 9a fc 77        CALLF      SUB_0e71_77fc
-                 71 0e
-       01a2:afd8 90              NOP
-       01a2:afd9 d9 06 e2 a4     FLD        float ptr [0xa4e2]
-       01a2:afdd 90              NOP
-       01a2:afde d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:afe2 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:afe7 d1 e0           SHL        AX,0x1
-       01a2:afe9 d1 e0           SHL        AX,0x1
-       01a2:afeb 05 fc 03        ADD        AX,0x3fc
-       01a2:afee 8b f0           MOV        SI,AX
-       01a2:aff0 90              NOP
-       01a2:aff1 d9 9c 92 9c     FSTP       float ptr [SI + 0x9c92]
-       01a2:aff5 90              NOP
-       01a2:aff6 9b              WAIT
-       01a2:aff7 90              NOP
-       01a2:aff8 d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:affc 90              NOP
-       01a2:affd d8 06 50 a5     FADD       float ptr { 1.0 }
-                             LAB_01a2_b001                                   XREF[1]:     01a2:ae7d(j)  
-       01a2:b001 90              NOP
-       01a2:b002 d9 1e 3a 00     FSTP       float ptr [0x3a]
-       01a2:b006 90              NOP
-       01a2:b007 9b              WAIT
-       01a2:b008 90              NOP
-       01a2:b009 d9 06 f2 a4     FLD        float ptr [0xa4f2]
-       01a2:b00d 90              NOP
-       01a2:b00e d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b012 90              NOP
-       01a2:b013 9b              WAIT
-       01a2:b014 9a 1d 04        CALLF      FPCOMPARE_2stack                                 undefined FPCOMPARE_2stack()
-                 75 0d
-       01a2:b019 77 03           JA         LAB_01a2_b01e
-       01a2:b01b e9 62 fe        JMP        LAB_01a2_ae80
-                             LAB_01a2_b01e                                   XREF[1]:     01a2:b019(j)  
-       01a2:b01e b8 01 00        MOV        AX,0x1
-       01a2:b021 50              PUSH       AX
-       01a2:b022 50              PUSH       AX
-       01a2:b023 9a 52 44        CALLF      SUB_0e71_4452
-                 71 0e
-       01a2:b028 c3              RET
-                             **************************************************************
-                             *                          FUNCTION                          *
-                             **************************************************************
-                             undefined __cdecl16near FUN_01a2_b029()
-                               assume DS = 0x1997
-             undefined         <UNASSIGNED>   <RETURN>
-                             FUN_01a2_b029                                   XREF[1]:     FUN_01a2_9c28:01a2:ad87(c)  
-       01a2:b029 b8 fa b8        MOV        AX,0xb8fa
-       01a2:b02c 50              PUSH       AX
-       01a2:b02d b8 01 00        MOV        AX,0x1
-       01a2:b030 50              PUSH       AX
-       01a2:b031 b8 ff ff        MOV        AX,0xffff
-       01a2:b034 50              PUSH       AX
-       01a2:b035 b8 02 00        MOV        AX,0x2
-       01a2:b038 50              PUSH       AX
-       01a2:b039 9a 26 42        CALLF      SUB_0e71_4226
-                 71 0e
-       01a2:b03e b8 01 00        MOV        AX,0x1
-       01a2:b041 50              PUSH       AX
-       01a2:b042 9a 4b 76        CALLF      SUB_0e71_764b
-                 71 0e
-       01a2:b047 9a 64 78        CALLF      SUB_0e71_7864
-                 71 0e
-       01a2:b04c ff 36 f0 a4     PUSH       word ptr [0xa4f0]
-       01a2:b050 ff 36 ee a4     PUSH       word ptr [0xa4ee]
-       01a2:b054 9a aa 76        CALLF      PRINT_float_newline
-                 71 0e
-       01a2:b059 90              NOP
-       01a2:b05a d9 06 50 a5     FLD        float ptr { 1.0 }
-       01a2:b05e 90              NOP
-       01a2:b05f d9 1e 06 a5     FSTP       float ptr [0xa506]
-       01a2:b063 90              NOP
-       01a2:b064 9b              WAIT
-       01a2:b065 90              NOP
-       01a2:b066 d9 06 ee a4     FLD        float ptr [0xa4ee]
-       01a2:b06a 90              NOP
-       01a2:b06b d9 1e 0a a5     FSTP       float ptr [0xa50a]
-       01a2:b06f 90              NOP
-       01a2:b070 9b              WAIT
-       01a2:b071 90              NOP
-       01a2:b072 d9 06 50 a5     FLD        float ptr { 1.0 }
-       01a2:b076 e9 66 01        JMP        LAB_01a2_b1df
-       01a2:b079 90              ??         90h
-                             LAB_01a2_b07a                                   XREF[1]:     01a2:b1f9(j)  
-       01a2:b07a 90              NOP
-       01a2:b07b d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b07f 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b084 d1 e0           SHL        AX,0x1
-       01a2:b086 d1 e0           SHL        AX,0x1
-       01a2:b088 05 cc 00        ADD        AX,0xcc
-       01a2:b08b 8b f0           MOV        SI,AX
-       01a2:b08d 90              NOP
-       01a2:b08e d9 84 92 9c     FLD        float ptr [SI + 0x9c92]
-       01a2:b092 90              NOP
-       01a2:b093 d9 1e 0e a5     FSTP       float ptr [0xa50e]
-       01a2:b097 90              NOP
-       01a2:b098 9b              WAIT
-       01a2:b099 b8 f6 a4        MOV        AX,0xa4f6
-       01a2:b09c 50              PUSH       AX
-       01a2:b09d 90              NOP
-       01a2:b09e d9 06 06 a5     FLD        float ptr [0xa506]
-       01a2:b0a2 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b0a7 50              PUSH       AX
-       01a2:b0a8 90              NOP
-       01a2:b0a9 d9 06 0e a5     FLD        float ptr [0xa50e]
-       01a2:b0ad 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b0b2 50              PUSH       AX
-       01a2:b0b3 9a ee 7f        CALLF      MID$
-                 71 0e
-       01a2:b0b8 50              PUSH       AX
-       01a2:b0b9 b8 32 a4        MOV        AX,0xa432
-       01a2:b0bc 50              PUSH       AX
-       01a2:b0bd 9a 78 7c        CALLF      SET_STRING
-                 71 0e
-       01a2:b0c2 90              NOP
-       01a2:b0c3 d9 06 06 a5     FLD        float ptr [0xa506]
-       01a2:b0c7 90              NOP
-       01a2:b0c8 d8 06 0e a5     FADD       float ptr [0xa50e]
-       01a2:b0cc 90              NOP
-       01a2:b0cd d9 1e 06 a5     FSTP       float ptr [0xa506]
-       01a2:b0d1 90              NOP
-       01a2:b0d2 9b              WAIT
-       01a2:b0d3 b8 01 00        MOV        AX,0x1
-       01a2:b0d6 50              PUSH       AX
-       01a2:b0d7 9a 4b 76        CALLF      SUB_0e71_764b
-                 71 0e
-       01a2:b0dc 9a 64 78        CALLF      SUB_0e71_7864
-                 71 0e
-       01a2:b0e1 b8 32 a4        MOV        AX,0xa432
-       01a2:b0e4 50              PUSH       AX
-       01a2:b0e5 9a c8 76        CALLF      PRINT_STR_NEWLINE
-                 71 0e
-       01a2:b0ea b8 01 00        MOV        AX,0x1
-       01a2:b0ed 50              PUSH       AX
-       01a2:b0ee 9a 4b 76        CALLF      SUB_0e71_764b
-                 71 0e
-       01a2:b0f3 9a 64 78        CALLF      SUB_0e71_7864
-                 71 0e
-       01a2:b0f8 90              NOP
-       01a2:b0f9 d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b0fd 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b102 d1 e0           SHL        AX,0x1
-       01a2:b104 d1 e0           SHL        AX,0x1
-       01a2:b106 05 98 01        ADD        AX,0x198
-       01a2:b109 81 c0 92 9c     ADD        AX,0x9c92
-       01a2:b10d 8b d8           MOV        BX,AX
-       01a2:b10f ff 77 02        PUSH       word ptr [BX + 0x2]
-       01a2:b112 ff 37           PUSH       word ptr [BX]
-       01a2:b114 9a aa 76        CALLF      PRINT_float_newline
-                 71 0e
-       01a2:b119 b8 01 00        MOV        AX,0x1
-       01a2:b11c 50              PUSH       AX
-       01a2:b11d 9a 4b 76        CALLF      SUB_0e71_764b
-                 71 0e
-       01a2:b122 9a 64 78        CALLF      SUB_0e71_7864
-                 71 0e
-       01a2:b127 90              NOP
-       01a2:b128 d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b12c 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b131 d1 e0           SHL        AX,0x1
-       01a2:b133 d1 e0           SHL        AX,0x1
-       01a2:b135 05 c8 04        ADD        AX,0x4c8
-       01a2:b138 81 c0 92 9c     ADD        AX,0x9c92
-       01a2:b13c 8b d8           MOV        BX,AX
-       01a2:b13e ff 77 02        PUSH       word ptr [BX + 0x2]
-       01a2:b141 ff 37           PUSH       word ptr [BX]
-       01a2:b143 9a aa 76        CALLF      PRINT_float_newline
-                 71 0e
-       01a2:b148 b8 01 00        MOV        AX,0x1
-       01a2:b14b 50              PUSH       AX
-       01a2:b14c 9a 4b 76        CALLF      SUB_0e71_764b
-                 71 0e
-       01a2:b151 9a 64 78        CALLF      SUB_0e71_7864
-                 71 0e
-       01a2:b156 90              NOP
-       01a2:b157 d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b15b 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b160 d1 e0           SHL        AX,0x1
-       01a2:b162 d1 e0           SHL        AX,0x1
-       01a2:b164 05 64 02        ADD        AX,0x264
-       01a2:b167 81 c0 92 9c     ADD        AX,0x9c92
-       01a2:b16b 8b d8           MOV        BX,AX
-       01a2:b16d ff 77 02        PUSH       word ptr [BX + 0x2]
-       01a2:b170 ff 37           PUSH       word ptr [BX]
-       01a2:b172 9a aa 76        CALLF      PRINT_float_newline
-                 71 0e
-       01a2:b177 b8 01 00        MOV        AX,0x1
-       01a2:b17a 50              PUSH       AX
-       01a2:b17b 9a 4b 76        CALLF      SUB_0e71_764b
-                 71 0e
-       01a2:b180 9a 64 78        CALLF      SUB_0e71_7864
-                 71 0e
-       01a2:b185 90              NOP
-       01a2:b186 d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b18a 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b18f d1 e0           SHL        AX,0x1
-       01a2:b191 d1 e0           SHL        AX,0x1
-       01a2:b193 05 30 03        ADD        AX,0x330
-       01a2:b196 81 c0 92 9c     ADD        AX,0x9c92
-       01a2:b19a 8b d8           MOV        BX,AX
-       01a2:b19c ff 77 02        PUSH       word ptr [BX + 0x2]
-       01a2:b19f ff 37           PUSH       word ptr [BX]
-       01a2:b1a1 9a aa 76        CALLF      PRINT_float_newline
-                 71 0e
-       01a2:b1a6 b8 01 00        MOV        AX,0x1
-       01a2:b1a9 50              PUSH       AX
-       01a2:b1aa 9a 4b 76        CALLF      SUB_0e71_764b
-                 71 0e
-       01a2:b1af 9a 64 78        CALLF      SUB_0e71_7864
-                 71 0e
-       01a2:b1b4 90              NOP
-       01a2:b1b5 d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b1b9 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b1be d1 e0           SHL        AX,0x1
-       01a2:b1c0 d1 e0           SHL        AX,0x1
-       01a2:b1c2 05 fc 03        ADD        AX,0x3fc
-       01a2:b1c5 81 c0 92 9c     ADD        AX,0x9c92
-       01a2:b1c9 8b d8           MOV        BX,AX
-       01a2:b1cb ff 77 02        PUSH       word ptr [BX + 0x2]
-       01a2:b1ce ff 37           PUSH       word ptr [BX]
-       01a2:b1d0 9a aa 76        CALLF      PRINT_float_newline
-                 71 0e
-       01a2:b1d5 90              NOP
-       01a2:b1d6 d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b1da 90              NOP
-       01a2:b1db d8 06 50 a5     FADD       float ptr { 1.0 }
-                             LAB_01a2_b1df                                   XREF[1]:     01a2:b076(j)  
-       01a2:b1df 90              NOP
-       01a2:b1e0 d9 1e 3a 00     FSTP       float ptr [0x3a]
-       01a2:b1e4 90              NOP
-       01a2:b1e5 9b              WAIT
-       01a2:b1e6 90              NOP
-       01a2:b1e7 d9 06 0a a5     FLD        float ptr [0xa50a]
-       01a2:b1eb 90              NOP
-       01a2:b1ec d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b1f0 90              NOP
-       01a2:b1f1 9b              WAIT
-       01a2:b1f2 9a 1d 04        CALLF      FPCOMPARE_2stack                                 undefined FPCOMPARE_2stack()
-                 75 0d
-       01a2:b1f7 77 03           JA         LAB_01a2_b1fc
-       01a2:b1f9 e9 7e fe        JMP        LAB_01a2_b07a
-                             LAB_01a2_b1fc                                   XREF[1]:     01a2:b1f7(j)  
-       01a2:b1fc b8 01 00        MOV        AX,0x1
-       01a2:b1ff 50              PUSH       AX
-       01a2:b200 50              PUSH       AX
-       01a2:b201 9a 52 44        CALLF      SUB_0e71_4452
-                 71 0e
-       01a2:b206 c3              RET
-                             **************************************************************
-                             *                          FUNCTION                          *
-                             **************************************************************
-                             undefined __cdecl16near FUN_01a2_b207()
-                               assume DS = 0x1997
-             undefined         <UNASSIGNED>   <RETURN>
-                             FUN_01a2_b207                                   XREF[3]:     FUN_01a2_0d85:01a2:13e6(c), 
-                                                                                          FUN_01a2_9c28:01a2:ad84(c), 
-                                                                                          FUN_01a2_b786:01a2:baa9(c)  
-       01a2:b207 90              NOP
-       01a2:b208 d9 06 50 a5     FLD        float ptr { 1.0 }
-       01a2:b20c 90              NOP
-       01a2:b20d d9 1e 06 a5     FSTP       float ptr [0xa506]
-       01a2:b211 90              NOP
-       01a2:b212 9b              WAIT
-       01a2:b213 b8 01 00        MOV        AX,0x1
-       01a2:b216 50              PUSH       AX
-       01a2:b217 b8 03 00        MOV        AX,0x3
-       01a2:b21a 50              PUSH       AX
-       01a2:b21b b8 02 00        MOV        AX,0x2
-       01a2:b21e 50              PUSH       AX
-       01a2:b21f 9a 86 61        CALLF      COLOR
-                 71 0e
-       01a2:b224 b8 01 00        MOV        AX,0x1
-       01a2:b227 50              PUSH       AX
-       01a2:b228 50              PUSH       AX
-       01a2:b229 50              PUSH       AX
-       01a2:b22a 50              PUSH       AX
-       01a2:b22b b8 04 00        MOV        AX,0x4
-       01a2:b22e 50              PUSH       AX
-       01a2:b22f 9a b2 61        CALLF      LOCATE
-                 71 0e
-       01a2:b234 b8 06 b9        MOV        AX,0xb906
-       01a2:b237 50              PUSH       AX
-       01a2:b238 9a c8 76        CALLF      PRINT_STR_NEWLINE
-                 71 0e
-       01a2:b23d b8 58 b9        MOV        AX,0xb958
-       01a2:b240 50              PUSH       AX
-       01a2:b241 9a c3 76        CALLF      PRINT_STR_SEMICOLON
-                 71 0e
-       01a2:b246 b8 3e a7        MOV        AX,""
-       01a2:b249 50              PUSH       AX
-       01a2:b24a 9a c8 76        CALLF      PRINT_STR_NEWLINE
-                 71 0e
-       01a2:b24f b8 3e a7        MOV        AX,""
-       01a2:b252 50              PUSH       AX
-       01a2:b253 9a c8 76        CALLF      PRINT_STR_NEWLINE
-                 71 0e
-       01a2:b258 90              NOP
-       01a2:b259 d9 06 ac b9     FLD        float ptr [0xb9ac]
-       01a2:b25d 90              NOP
-       01a2:b25e d9 1e 12 a5     FSTP       float ptr [0xa512]
-       01a2:b262 90              NOP
-       01a2:b263 9b              WAIT
-       01a2:b264 90              NOP
-       01a2:b265 d9 06 4c a6     FLD        float ptr { 0.0 }
-       01a2:b269 90              NOP
-       01a2:b26a d9 1e 16 a5     FSTP       float ptr [0xa516]
-       01a2:b26e 90              NOP
-       01a2:b26f 9b              WAIT
-       01a2:b270 90              NOP
-       01a2:b271 d9 06 ee a4     FLD        float ptr [0xa4ee]
-       01a2:b275 90              NOP
-       01a2:b276 d9 1e 1a a5     FSTP       float ptr [0xa51a]
-       01a2:b27a 90              NOP
-       01a2:b27b 9b              WAIT
-       01a2:b27c 90              NOP
-       01a2:b27d d9 06 50 a5     FLD        float ptr { 1.0 }
-       01a2:b281 e9 96 03        JMP        LAB_01a2_b61a
-                             LAB_01a2_b284                                   XREF[1]:     01a2:b634(j)  
-       01a2:b284 90              NOP
-       01a2:b285 d9 06 c6 b4     FLD        float ptr [0xb4c6]
-       01a2:b289 90              NOP
-       01a2:b28a d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b28e 90              NOP
-       01a2:b28f 9b              WAIT
-       01a2:b290 9a 1d 04        CALLF      FPCOMPARE_2stack                                 undefined FPCOMPARE_2stack()
-                 75 0d
-       01a2:b295 72 03           JC         LAB_01a2_b29a
-       01a2:b297 e9 0f 00        JMP        LAB_01a2_b2a9
-                             LAB_01a2_b29a                                   XREF[1]:     01a2:b295(j)  
-       01a2:b29a 90              NOP
-       01a2:b29b d9 06 50 a5     FLD        float ptr { 1.0 }
-       01a2:b29f 90              NOP
-       01a2:b2a0 d9 1e 1e a5     FSTP       float ptr [0xa51e]
-       01a2:b2a4 90              NOP
-       01a2:b2a5 9b              WAIT
-       01a2:b2a6 e9 0c 00        JMP        LAB_01a2_b2b5
-                             LAB_01a2_b2a9                                   XREF[1]:     01a2:b297(j)  
-       01a2:b2a9 90              NOP
-       01a2:b2aa d9 06 fa b3     FLD        float ptr [0xb3fa]
-       01a2:b2ae 90              NOP
-       01a2:b2af d9 1e 1e a5     FSTP       float ptr [0xa51e]
-       01a2:b2b3 90              NOP
-       01a2:b2b4 9b              WAIT
-                             LAB_01a2_b2b5                                   XREF[1]:     01a2:b2a6(j)  
-       01a2:b2b5 90              NOP
-       01a2:b2b6 d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b2ba 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b2bf d1 e0           SHL        AX,0x1
-       01a2:b2c1 d1 e0           SHL        AX,0x1
-       01a2:b2c3 05 98 01        ADD        AX,0x198
-       01a2:b2c6 8b f0           MOV        SI,AX
-       01a2:b2c8 90              NOP
-       01a2:b2c9 d9 84 92 9c     FLD        float ptr [SI + 0x9c92]
-       01a2:b2cd 90              NOP
-       01a2:b2ce d9 1e 22 a5     FSTP       float ptr [0xa522]
-       01a2:b2d2 90              NOP
-       01a2:b2d3 9b              WAIT
-       01a2:b2d4 90              NOP
-       01a2:b2d5 d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b2d9 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b2de d1 e0           SHL        AX,0x1
-       01a2:b2e0 d1 e0           SHL        AX,0x1
-       01a2:b2e2 05 64 02        ADD        AX,0x264
-       01a2:b2e5 8b f0           MOV        SI,AX
-       01a2:b2e7 90              NOP
-       01a2:b2e8 d9 84 92 9c     FLD        float ptr [SI + 0x9c92]
-       01a2:b2ec 90              NOP
-       01a2:b2ed d9 1e 26 a5     FSTP       float ptr [0xa526]
-       01a2:b2f1 90              NOP
-       01a2:b2f2 9b              WAIT
-       01a2:b2f3 90              NOP
-       01a2:b2f4 d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b2f8 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b2fd d1 e0           SHL        AX,0x1
-       01a2:b2ff d1 e0           SHL        AX,0x1
-       01a2:b301 05 30 03        ADD        AX,0x330
-       01a2:b304 8b f0           MOV        SI,AX
-       01a2:b306 90              NOP
-       01a2:b307 d9 84 92 9c     FLD        float ptr [SI + 0x9c92]
-       01a2:b30b 90              NOP
-       01a2:b30c d9 1e 2a a5     FSTP       float ptr [0xa52a]
-       01a2:b310 90              NOP
-       01a2:b311 9b              WAIT
-       01a2:b312 90              NOP
-       01a2:b313 d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b317 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b31c d1 e0           SHL        AX,0x1
-       01a2:b31e d1 e0           SHL        AX,0x1
-       01a2:b320 05 c8 04        ADD        AX,0x4c8
-       01a2:b323 8b f0           MOV        SI,AX
-       01a2:b325 90              NOP
-       01a2:b326 d9 84 92 9c     FLD        float ptr [SI + 0x9c92]
-       01a2:b32a 90              NOP
-       01a2:b32b d9 1e de a4     FSTP       float ptr [0xa4de]
-       01a2:b32f 90              NOP
-       01a2:b330 9b              WAIT
-       01a2:b331 90              NOP
-       01a2:b332 d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b336 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b33b d1 e0           SHL        AX,0x1
-       01a2:b33d d1 e0           SHL        AX,0x1
-       01a2:b33f 05 fc 03        ADD        AX,0x3fc
-       01a2:b342 8b f0           MOV        SI,AX
-       01a2:b344 90              NOP
-       01a2:b345 d9 84 92 9c     FLD        float ptr [SI + 0x9c92]
-       01a2:b349 90              NOP
-       01a2:b34a d9 1e e2 a4     FSTP       float ptr [0xa4e2]
-       01a2:b34e 90              NOP
-       01a2:b34f 9b              WAIT
-       01a2:b350 90              NOP
-       01a2:b351 d9 06 12 a5     FLD        float ptr [0xa512]
-       01a2:b355 90              NOP
-       01a2:b356 d9 06 e2 a4     FLD        float ptr [0xa4e2]
-       01a2:b35a 90              NOP
-       01a2:b35b 9b              WAIT
-       01a2:b35c 9a 1d 04        CALLF      FPCOMPARE_2stack                                 undefined FPCOMPARE_2stack()
-                 75 0d
-       01a2:b361 77 03           JA         LAB_01a2_b366
-       01a2:b363 e9 0c 00        JMP        LAB_01a2_b372
-                             LAB_01a2_b366                                   XREF[1]:     01a2:b361(j)  
-       01a2:b366 90              NOP
-       01a2:b367 d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b36b 90              NOP
-       01a2:b36c d9 1e 16 a5     FSTP       float ptr [0xa516]
-       01a2:b370 90              NOP
-       01a2:b371 9b              WAIT
-                             LAB_01a2_b372                                   XREF[1]:     01a2:b363(j)  
-       01a2:b372 90              NOP
-       01a2:b373 d9 06 5e b4     FLD        float ptr [0xb45e]
-       01a2:b377 90              NOP
-       01a2:b378 d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b37c 90              NOP
-       01a2:b37d 9b              WAIT
-       01a2:b37e 9a 1d 04        CALLF      FPCOMPARE_2stack                                 undefined FPCOMPARE_2stack()
-                 75 0d
-       01a2:b383 77 03           JA         LAB_01a2_b388
-       01a2:b385 e9 25 00        JMP        LAB_01a2_b3ad
-                             LAB_01a2_b388                                   XREF[1]:     01a2:b383(j)  
-       01a2:b388 b8 01 00        MOV        AX,0x1
-       01a2:b38b 50              PUSH       AX
-       01a2:b38c 90              NOP
-       01a2:b38d d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b391 90              NOP
-       01a2:b392 d8 06 b0 b9     FADD       float ptr [0xb9b0]
-       01a2:b396 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b39b 50              PUSH       AX
-       01a2:b39c b8 01 00        MOV        AX,0x1
-       01a2:b39f 50              PUSH       AX
-       01a2:b3a0 b8 28 00        MOV        AX,0x28
-       01a2:b3a3 50              PUSH       AX
-       01a2:b3a4 b8 04 00        MOV        AX,0x4
-       01a2:b3a7 50              PUSH       AX
-       01a2:b3a8 9a b2 61        CALLF      LOCATE
-                 71 0e
-                             LAB_01a2_b3ad                                   XREF[1]:     01a2:b385(j)  
-       01a2:b3ad 90              NOP
-       01a2:b3ae d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b3b2 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b3b7 d1 e0           SHL        AX,0x1
-       01a2:b3b9 d1 e0           SHL        AX,0x1
-       01a2:b3bb 05 cc 00        ADD        AX,0xcc
-       01a2:b3be 8b f0           MOV        SI,AX
-       01a2:b3c0 90              NOP
-       01a2:b3c1 d9 84 92 9c     FLD        float ptr [SI + 0x9c92]
-       01a2:b3c5 90              NOP
-       01a2:b3c6 d9 1e 0e a5     FSTP       float ptr [0xa50e]
-       01a2:b3ca 90              NOP
-       01a2:b3cb 9b              WAIT
-       01a2:b3cc b8 01 00        MOV        AX,0x1
-       01a2:b3cf 50              PUSH       AX
-       01a2:b3d0 b8 0f 00        MOV        AX,0xf
-       01a2:b3d3 50              PUSH       AX
-       01a2:b3d4 b8 02 00        MOV        AX,0x2
-       01a2:b3d7 50              PUSH       AX
-       01a2:b3d8 9a 86 61        CALLF      COLOR
-                 71 0e
-       01a2:b3dd 90              NOP
-       01a2:b3de d9 06 1e a5     FLD        float ptr [0xa51e]
-       01a2:b3e2 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b3e7 50              PUSH       AX
-       01a2:b3e8 9a be 82        CALLF      SUB_0e71_82be
-                 71 0e
-       01a2:b3ed b8 3e a7        MOV        AX,""
-       01a2:b3f0 50              PUSH       AX
-       01a2:b3f1 9a c3 76        CALLF      PRINT_STR_SEMICOLON
-                 71 0e
-       01a2:b3f6 ff 36 3c 00     PUSH       word ptr [0x3c]
-       01a2:b3fa ff 36 3a 00     PUSH       word ptr [0x3a]
-       01a2:b3fe 9a a5 76        CALLF      PRINT_float_semicolon
-                 71 0e
-       01a2:b403 90              NOP
-       01a2:b404 d9 06 94 af     FLD        float ptr { 9.0 }
-       01a2:b408 90              NOP
-       01a2:b409 d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b40d 90              NOP
-       01a2:b40e 9b              WAIT
-       01a2:b40f 9a 1d 04        CALLF      FPCOMPARE_2stack                                 undefined FPCOMPARE_2stack()
-                 75 0d
-       01a2:b414 77 03           JA         LAB_01a2_b419
-       01a2:b416 e9 0c 00        JMP        LAB_01a2_b425
-                             LAB_01a2_b419                                   XREF[1]:     01a2:b414(j)  
-       01a2:b419 b8 3e a7        MOV        AX,""
-       01a2:b41c 50              PUSH       AX
-       01a2:b41d 9a c3 76        CALLF      PRINT_STR_SEMICOLON
-                 71 0e
-       01a2:b422 e9 09 00        JMP        LAB_01a2_b42e
-                             LAB_01a2_b425                                   XREF[1]:     01a2:b416(j)  
-       01a2:b425 b8 b4 b9        MOV        AX,0xb9b4
-       01a2:b428 50              PUSH       AX
-       01a2:b429 9a c3 76        CALLF      PRINT_STR_SEMICOLON
-                 71 0e
-                             LAB_01a2_b42e                                   XREF[1]:     01a2:b422(j)  
-       01a2:b42e b8 01 00        MOV        AX,0x1
-       01a2:b431 50              PUSH       AX
-       01a2:b432 b8 0a 00        MOV        AX,0xa
-       01a2:b435 50              PUSH       AX
-       01a2:b436 b8 02 00        MOV        AX,0x2
-       01a2:b439 50              PUSH       AX
-       01a2:b43a 9a 86 61        CALLF      COLOR
-                 71 0e
-       01a2:b43f b8 f6 a4        MOV        AX,0xa4f6
-       01a2:b442 50              PUSH       AX
-       01a2:b443 90              NOP
-       01a2:b444 d9 06 06 a5     FLD        float ptr [0xa506]
-       01a2:b448 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b44d 50              PUSH       AX
-       01a2:b44e 90              NOP
-       01a2:b44f d9 06 0e a5     FLD        float ptr [0xa50e]
-       01a2:b453 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b458 50              PUSH       AX
-       01a2:b459 9a ee 7f        CALLF      MID$
-                 71 0e
-       01a2:b45e 50              PUSH       AX
-       01a2:b45f 9a c3 76        CALLF      PRINT_STR_SEMICOLON
-                 71 0e
-       01a2:b464 90              NOP
-       01a2:b465 d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b469 90              NOP
-       01a2:b46a d9 06 16 a5     FLD        float ptr [0xa516]
-       01a2:b46e 90              NOP
-       01a2:b46f 9b              WAIT
-       01a2:b470 9a 1d 04        CALLF      FPCOMPARE_2stack                                 undefined FPCOMPARE_2stack()
-                 75 0d
-       01a2:b475 74 03           JZ         LAB_01a2_b47a
-       01a2:b477 e9 29 00        JMP        LAB_01a2_b4a3
-                             LAB_01a2_b47a                                   XREF[1]:     01a2:b475(j)  
-       01a2:b47a b8 f6 a4        MOV        AX,0xa4f6
-       01a2:b47d 50              PUSH       AX
-       01a2:b47e 90              NOP
-       01a2:b47f d9 06 06 a5     FLD        float ptr [0xa506]
-       01a2:b483 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b488 50              PUSH       AX
-       01a2:b489 90              NOP
-       01a2:b48a d9 06 0e a5     FLD        float ptr [0xa50e]
-       01a2:b48e 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b493 50              PUSH       AX
-       01a2:b494 9a ee 7f        CALLF      MID$
-                 71 0e
-       01a2:b499 50              PUSH       AX
-       01a2:b49a b8 2e a5        MOV        AX,0xa52e
-       01a2:b49d 50              PUSH       AX
-       01a2:b49e 9a 78 7c        CALLF      SET_STRING
-                 71 0e
-                             LAB_01a2_b4a3                                   XREF[1]:     01a2:b477(j)  
-       01a2:b4a3 90              NOP
-       01a2:b4a4 d9 06 12 a5     FLD        float ptr [0xa512]
-       01a2:b4a8 90              NOP
-       01a2:b4a9 d9 06 e2 a4     FLD        float ptr [0xa4e2]
-       01a2:b4ad 90              NOP
-       01a2:b4ae 9b              WAIT
-       01a2:b4af 9a 1d 04        CALLF      FPCOMPARE_2stack                                 undefined FPCOMPARE_2stack()
-                 75 0d
-       01a2:b4b4 77 03           JA         LAB_01a2_b4b9
-       01a2:b4b6 e9 0c 00        JMP        LAB_01a2_b4c5
-                             LAB_01a2_b4b9                                   XREF[1]:     01a2:b4b4(j)  
-       01a2:b4b9 90              NOP
-       01a2:b4ba d9 06 e2 a4     FLD        float ptr [0xa4e2]
-       01a2:b4be 90              NOP
-       01a2:b4bf d9 1e 12 a5     FSTP       float ptr [0xa512]
-       01a2:b4c3 90              NOP
-       01a2:b4c4 9b              WAIT
-                             LAB_01a2_b4c5                                   XREF[1]:     01a2:b4b6(j)  
-       01a2:b4c5 b8 01 00        MOV        AX,0x1
-       01a2:b4c8 50              PUSH       AX
-       01a2:b4c9 b8 09 00        MOV        AX,0x9
-       01a2:b4cc 50              PUSH       AX
-       01a2:b4cd b8 02 00        MOV        AX,0x2
-       01a2:b4d0 50              PUSH       AX
-       01a2:b4d1 9a 86 61        CALLF      COLOR
-                 71 0e
-       01a2:b4d6 90              NOP
-       01a2:b4d7 d9 06 78 a6     FLD        float ptr [0xa678]
-       01a2:b4db 90              NOP
-       01a2:b4dc d8 06 1e a5     FADD       float ptr [0xa51e]
-       01a2:b4e0 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b4e5 50              PUSH       AX
-       01a2:b4e6 9a be 82        CALLF      SUB_0e71_82be
-                 71 0e
-       01a2:b4eb b8 3e a7        MOV        AX,""
-       01a2:b4ee 50              PUSH       AX
-       01a2:b4ef 9a c3 76        CALLF      PRINT_STR_SEMICOLON
-                 71 0e
-       01a2:b4f4 ff 36 24 a5     PUSH       word ptr [0xa524]
-       01a2:b4f8 ff 36 22 a5     PUSH       word ptr [0xa522]
-       01a2:b4fc 9a a5 76        CALLF      PRINT_float_semicolon
-                 71 0e
-       01a2:b501 b8 01 00        MOV        AX,0x1
-       01a2:b504 50              PUSH       AX
-       01a2:b505 b8 07 00        MOV        AX,0x7
-       01a2:b508 50              PUSH       AX
-       01a2:b509 b8 02 00        MOV        AX,0x2
-       01a2:b50c 50              PUSH       AX
-       01a2:b50d 9a 86 61        CALLF      COLOR
-                 71 0e
-       01a2:b512 90              NOP
-       01a2:b513 d9 06 1e a5     FLD        float ptr [0xa51e]
-       01a2:b517 90              NOP
-       01a2:b518 d8 06 3a b4     FADD       float ptr [0xb43a]
-       01a2:b51c 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b521 50              PUSH       AX
-       01a2:b522 9a be 82        CALLF      SUB_0e71_82be
-                 71 0e
-       01a2:b527 b8 3e a7        MOV        AX,""
-       01a2:b52a 50              PUSH       AX
-       01a2:b52b 9a c3 76        CALLF      PRINT_STR_SEMICOLON
-                 71 0e
-       01a2:b530 ff 36 e0 a4     PUSH       word ptr [0xa4e0]
-       01a2:b534 ff 36 de a4     PUSH       word ptr [0xa4de]
-       01a2:b538 9a a5 76        CALLF      PRINT_float_semicolon
-                 71 0e
-       01a2:b53d b8 01 00        MOV        AX,0x1
-       01a2:b540 50              PUSH       AX
-       01a2:b541 b8 0d 00        MOV        AX,0xd
-       01a2:b544 50              PUSH       AX
-       01a2:b545 b8 02 00        MOV        AX,0x2
-       01a2:b548 50              PUSH       AX
-       01a2:b549 9a 86 61        CALLF      COLOR
-                 71 0e
-       01a2:b54e 90              NOP
-       01a2:b54f d9 06 1e a5     FLD        float ptr [0xa51e]
-       01a2:b553 90              NOP
-       01a2:b554 d8 06 56 b4     FADD       float ptr [0xb456]
-       01a2:b558 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b55d 50              PUSH       AX
-       01a2:b55e 9a be 82        CALLF      SUB_0e71_82be
-                 71 0e
-       01a2:b563 b8 3e a7        MOV        AX,""
-       01a2:b566 50              PUSH       AX
-       01a2:b567 9a c3 76        CALLF      PRINT_STR_SEMICOLON
-                 71 0e
-       01a2:b56c ff 36 28 a5     PUSH       word ptr [0xa528]
-       01a2:b570 ff 36 26 a5     PUSH       word ptr [0xa526]
-       01a2:b574 9a a5 76        CALLF      PRINT_float_semicolon
-                 71 0e
-       01a2:b579 b8 01 00        MOV        AX,0x1
-       01a2:b57c 50              PUSH       AX
-       01a2:b57d b8 0c 00        MOV        AX,0xc
-       01a2:b580 50              PUSH       AX
-       01a2:b581 b8 02 00        MOV        AX,0x2
-       01a2:b584 50              PUSH       AX
-       01a2:b585 9a 86 61        CALLF      COLOR
-                 71 0e
-       01a2:b58a 90              NOP
-       01a2:b58b d9 06 1e a5     FLD        float ptr [0xa51e]
-       01a2:b58f 90              NOP
-       01a2:b590 d8 06 ca b4     FADD       float ptr [0xb4ca]
-       01a2:b594 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b599 50              PUSH       AX
-       01a2:b59a 9a be 82        CALLF      SUB_0e71_82be
-                 71 0e
-       01a2:b59f b8 3e a7        MOV        AX,""
-       01a2:b5a2 50              PUSH       AX
-       01a2:b5a3 9a c3 76        CALLF      PRINT_STR_SEMICOLON
-                 71 0e
-       01a2:b5a8 ff 36 2c a5     PUSH       word ptr [0xa52c]
-       01a2:b5ac ff 36 2a a5     PUSH       word ptr [0xa52a]
-       01a2:b5b0 9a a5 76        CALLF      PRINT_float_semicolon
-                 71 0e
-       01a2:b5b5 b8 01 00        MOV        AX,0x1
-       01a2:b5b8 50              PUSH       AX
-       01a2:b5b9 b8 0e 00        MOV        AX,0xe
-       01a2:b5bc 50              PUSH       AX
-       01a2:b5bd b8 02 00        MOV        AX,0x2
-       01a2:b5c0 50              PUSH       AX
-       01a2:b5c1 9a 86 61        CALLF      COLOR
-                 71 0e
-       01a2:b5c6 90              NOP
-       01a2:b5c7 d9 06 ee b3     FLD        float ptr [0xb3ee]
-       01a2:b5cb 90              NOP
-       01a2:b5cc d8 06 1e a5     FADD       float ptr [0xa51e]
-       01a2:b5d0 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b5d5 50              PUSH       AX
-       01a2:b5d6 9a be 82        CALLF      SUB_0e71_82be
-                 71 0e
-       01a2:b5db b8 3e a7        MOV        AX,""
-       01a2:b5de 50              PUSH       AX
-       01a2:b5df 9a c3 76        CALLF      PRINT_STR_SEMICOLON
-                 71 0e
-       01a2:b5e4 90              NOP
-       01a2:b5e5 d9 06 e2 a4     FLD        float ptr [0xa4e2]
-       01a2:b5e9 90              NOP
-       01a2:b5ea 9b              WAIT
-       01a2:b5eb 9a 49 04        CALLF      FUN_0d75_0449                                    undefined FUN_0d75_0449()
-                 75 0d
-       01a2:b5f0 83 ec 04        SUB        SP,0x4
-       01a2:b5f3 8b dc           MOV        BX,SP
-       01a2:b5f5 90              NOP
-       01a2:b5f6 d9 1f           FSTP       float ptr [BX]
-       01a2:b5f8 90              NOP
-       01a2:b5f9 9b              WAIT
-       01a2:b5fa 9a aa 76        CALLF      PRINT_float_newline
-                 71 0e
-       01a2:b5ff 90              NOP
-       01a2:b600 d9 06 06 a5     FLD        float ptr [0xa506]
-       01a2:b604 90              NOP
-       01a2:b605 d8 06 0e a5     FADD       float ptr [0xa50e]
-       01a2:b609 90              NOP
-       01a2:b60a d9 1e 06 a5     FSTP       float ptr [0xa506]
-       01a2:b60e 90              NOP
-       01a2:b60f 9b              WAIT
-       01a2:b610 90              NOP
-       01a2:b611 d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b615 90              NOP
-       01a2:b616 d8 06 50 a5     FADD       float ptr { 1.0 }
-                             LAB_01a2_b61a                                   XREF[1]:     01a2:b281(j)  
-       01a2:b61a 90              NOP
-       01a2:b61b d9 1e 3a 00     FSTP       float ptr [0x3a]
-       01a2:b61f 90              NOP
-       01a2:b620 9b              WAIT
-       01a2:b621 90              NOP
-       01a2:b622 d9 06 1a a5     FLD        float ptr [0xa51a]
-       01a2:b626 90              NOP
-       01a2:b627 d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b62b 90              NOP
-       01a2:b62c 9b              WAIT
-       01a2:b62d 9a 1d 04        CALLF      FPCOMPARE_2stack                                 undefined FPCOMPARE_2stack()
-                 75 0d
-       01a2:b632 77 03           JA         LAB_01a2_b637
-       01a2:b634 e9 4d fc        JMP        LAB_01a2_b284
-                             LAB_01a2_b637                                   XREF[1]:     01a2:b632(j)  
-       01a2:b637 b8 01 00        MOV        AX,0x1
-       01a2:b63a 50              PUSH       AX
-       01a2:b63b b8 1a 00        MOV        AX,0x1a
-       01a2:b63e 50              PUSH       AX
-       01a2:b63f b8 01 00        MOV        AX,0x1
-       01a2:b642 50              PUSH       AX
-       01a2:b643 b8 0a 00        MOV        AX,0xa
-       01a2:b646 50              PUSH       AX
-       01a2:b647 b8 04 00        MOV        AX,0x4
-       01a2:b64a 50              PUSH       AX
-       01a2:b64b 9a b2 61        CALLF      LOCATE
-                 71 0e
-       01a2:b650 b8 01 00        MOV        AX,0x1
-       01a2:b653 50              PUSH       AX
-       01a2:b654 b8 02 00        MOV        AX,0x2
-       01a2:b657 50              PUSH       AX
-       01a2:b658 50              PUSH       AX
-       01a2:b659 9a 86 61        CALLF      COLOR
-                 71 0e
-       01a2:b65e b8 ba b9        MOV        AX,0xb9ba
-       01a2:b661 50              PUSH       AX
-       01a2:b662 9a c3 76        CALLF      PRINT_STR_SEMICOLON
-                 71 0e
-       01a2:b667 b8 01 00        MOV        AX,0x1
-       01a2:b66a 50              PUSH       AX
-       01a2:b66b b8 0c 00        MOV        AX,0xc
-       01a2:b66e 50              PUSH       AX
-       01a2:b66f b8 02 00        MOV        AX,0x2
-       01a2:b672 50              PUSH       AX
-       01a2:b673 9a 86 61        CALLF      COLOR
-                 71 0e
-       01a2:b678 b8 2e a5        MOV        AX,0xa52e
-       01a2:b67b 50              PUSH       AX
-       01a2:b67c 9a c3 76        CALLF      PRINT_STR_SEMICOLON
-                 71 0e
-       01a2:b681 b8 01 00        MOV        AX,0x1
-       01a2:b684 50              PUSH       AX
-       01a2:b685 b8 02 00        MOV        AX,0x2
-       01a2:b688 50              PUSH       AX
-       01a2:b689 50              PUSH       AX
-       01a2:b68a 9a 86 61        CALLF      COLOR
-                 71 0e
-       01a2:b68f b8 da b9        MOV        AX,0xb9da
-       01a2:b692 50              PUSH       AX
-       01a2:b693 9a c3 76        CALLF      PRINT_STR_SEMICOLON
-                 71 0e
-       01a2:b698 b8 01 00        MOV        AX,0x1
-       01a2:b69b 50              PUSH       AX
-       01a2:b69c b8 0d 00        MOV        AX,0xd
-       01a2:b69f 50              PUSH       AX
-       01a2:b6a0 b8 02 00        MOV        AX,0x2
-       01a2:b6a3 50              PUSH       AX
-       01a2:b6a4 9a 86 61        CALLF      COLOR
-                 71 0e
-       01a2:b6a9 ff 36 14 a5     PUSH       word ptr [0xa514]
-       01a2:b6ad ff 36 12 a5     PUSH       word ptr [0xa512]
-       01a2:b6b1 9a aa 76        CALLF      PRINT_float_newline
-                 71 0e
-       01a2:b6b6 33 c0           XOR        AX,AX
-       01a2:b6b8 50              PUSH       AX
-       01a2:b6b9 50              PUSH       AX
-       01a2:b6ba 9a 91 5b        CALLF      GRAPHICS_SETPT1
-                 71 0e
-       01a2:b6bf b8 7f 02        MOV        AX,0x27f
-       01a2:b6c2 50              PUSH       AX
-       01a2:b6c3 b8 cc 01        MOV        AX,0x1cc
-       01a2:b6c6 50              PUSH       AX
-       01a2:b6c7 9a ab 5b        CALLF      GRAPHICS_SETPT2
-                 71 0e
-       01a2:b6cc b8 0e 00        MOV        AX,0xe
-       01a2:b6cf 50              PUSH       AX
-       01a2:b6d0 b8 ff ff        MOV        AX,0xffff
-       01a2:b6d3 50              PUSH       AX
-       01a2:b6d4 b8 01 00        MOV        AX,0x1
-       01a2:b6d7 50              PUSH       AX
-       01a2:b6d8 9a 80 10        CALLF      LINE
-                 71 0e
-       01a2:b6dd b8 40 01        MOV        AX,0x140
-       01a2:b6e0 50              PUSH       AX
-       01a2:b6e1 33 c0           XOR        AX,AX
-       01a2:b6e3 50              PUSH       AX
-       01a2:b6e4 9a 91 5b        CALLF      GRAPHICS_SETPT1
-                 71 0e
-       01a2:b6e9 b8 40 01        MOV        AX,0x140
-       01a2:b6ec 50              PUSH       AX
-       01a2:b6ed b8 88 01        MOV        AX,0x188
-       01a2:b6f0 50              PUSH       AX
-       01a2:b6f1 9a ab 5b        CALLF      GRAPHICS_SETPT2
-                 71 0e
-       01a2:b6f6 b8 0e 00        MOV        AX,0xe
-       01a2:b6f9 50              PUSH       AX
-       01a2:b6fa b8 ff ff        MOV        AX,0xffff
-       01a2:b6fd 50              PUSH       AX
-       01a2:b6fe 33 c0           XOR        AX,AX
-       01a2:b700 50              PUSH       AX
-       01a2:b701 9a 80 10        CALLF      LINE
-                 71 0e
-       01a2:b706 b8 02 00        MOV        AX,0x2
-       01a2:b709 50              PUSH       AX
-       01a2:b70a b8 88 01        MOV        AX,0x188
-       01a2:b70d 50              PUSH       AX
-       01a2:b70e 9a 91 5b        CALLF      GRAPHICS_SETPT1
-                 71 0e
-       01a2:b713 b8 7d 02        MOV        AX,0x27d
-       01a2:b716 50              PUSH       AX
-       01a2:b717 b8 a4 01        MOV        AX,0x1a4
-       01a2:b71a 50              PUSH       AX
-       01a2:b71b 9a ab 5b        CALLF      GRAPHICS_SETPT2
-                 71 0e
-       01a2:b720 b8 0b 00        MOV        AX,0xb
-       01a2:b723 50              PUSH       AX
-       01a2:b724 b8 ff ff        MOV        AX,0xffff
-       01a2:b727 50              PUSH       AX
-       01a2:b728 b8 01 00        MOV        AX,0x1
-       01a2:b72b 50              PUSH       AX
-       01a2:b72c 9a 80 10        CALLF      LINE
-                 71 0e
-       01a2:b731 33 c0           XOR        AX,AX
-       01a2:b733 50              PUSH       AX
-       01a2:b734 b8 28 00        MOV        AX,0x28
-       01a2:b737 50              PUSH       AX
-       01a2:b738 9a 91 5b        CALLF      GRAPHICS_SETPT1
-                 71 0e
-       01a2:b73d b8 80 02        MOV        AX,0x280
-       01a2:b740 50              PUSH       AX
-       01a2:b741 b8 28 00        MOV        AX,0x28
-       01a2:b744 50              PUSH       AX
-       01a2:b745 9a ab 5b        CALLF      GRAPHICS_SETPT2
-                 71 0e
-       01a2:b74a b8 0e 00        MOV        AX,0xe
-       01a2:b74d 50              PUSH       AX
-       01a2:b74e b8 ff ff        MOV        AX,0xffff
-       01a2:b751 50              PUSH       AX
-       01a2:b752 33 c0           XOR        AX,AX
-       01a2:b754 50              PUSH       AX
-       01a2:b755 9a 80 10        CALLF      LINE
-                 71 0e
-       01a2:b75a b8 02 00        MOV        AX,0x2
-       01a2:b75d 50              PUSH       AX
-       01a2:b75e b8 a6 01        MOV        AX,0x1a6
-       01a2:b761 50              PUSH       AX
-       01a2:b762 9a 91 5b        CALLF      GRAPHICS_SETPT1
-                 71 0e
-       01a2:b767 b8 7d 02        MOV        AX,0x27d
-       01a2:b76a 50              PUSH       AX
-       01a2:b76b b8 ca 01        MOV        AX,0x1ca
-       01a2:b76e 50              PUSH       AX
-       01a2:b76f 9a ab 5b        CALLF      GRAPHICS_SETPT2
-                 71 0e
-       01a2:b774 b8 0e 00        MOV        AX,0xe
-       01a2:b777 50              PUSH       AX
-       01a2:b778 b8 ff ff        MOV        AX,0xffff
-       01a2:b77b 50              PUSH       AX
-       01a2:b77c b8 01 00        MOV        AX,0x1
-       01a2:b77f 50              PUSH       AX
-       01a2:b780 9a 80 10        CALLF      LINE
-                 71 0e
-       01a2:b785 c3              RET
-                             **************************************************************
-                             *                          FUNCTION                          *
-                             **************************************************************
-                             undefined __cdecl16near FUN_01a2_b786()
-                               assume DS = 0x1997
-             undefined         <UNASSIGNED>   <RETURN>
-                             FUN_01a2_b786                                   XREF[3]:     FUN_01a2_0d85:01a2:13e9(c), 
-                                                                                          01a2:b80c(j), 01a2:b9ae(j)  
-       01a2:b786 b8 3e a7        MOV        AX,""
-       01a2:b789 50              PUSH       AX
-       01a2:b78a b8 32 a4        MOV        AX,0xa432
-       01a2:b78d 50              PUSH       AX
-       01a2:b78e 9a 78 7c        CALLF      SET_STRING
-                 71 0e
-       01a2:b793 b8 01 00        MOV        AX,0x1
-       01a2:b796 50              PUSH       AX
-       01a2:b797 b8 1c 00        MOV        AX,0x1c
-       01a2:b79a 50              PUSH       AX
-       01a2:b79b b8 01 00        MOV        AX,0x1
-       01a2:b79e 50              PUSH       AX
-       01a2:b79f b8 05 00        MOV        AX,0x5
-       01a2:b7a2 50              PUSH       AX
-       01a2:b7a3 b8 04 00        MOV        AX,0x4
-       01a2:b7a6 50              PUSH       AX
-       01a2:b7a7 9a b2 61        CALLF      LOCATE
-                 71 0e
-       01a2:b7ac b8 01 00        MOV        AX,0x1
-       01a2:b7af 50              PUSH       AX
-       01a2:b7b0 b8 0f 00        MOV        AX,0xf
-       01a2:b7b3 50              PUSH       AX
-       01a2:b7b4 b8 02 00        MOV        AX,0x2
-       01a2:b7b7 50              PUSH       AX
-       01a2:b7b8 9a 86 61        CALLF      COLOR
-                 71 0e
-       01a2:b7bd b8 f4 b9        MOV        AX,0xb9f4
-       01a2:b7c0 50              PUSH       AX
-       01a2:b7c1 e8 00 00        CALL       LAB_01a2_b7c4
-                             LAB_01a2_b7c4                                   XREF[1]:     01a2:b7c1(j)  
-       01a2:b7c4 58              POP        AX
-       01a2:b7c5 05 0d 00        ADD        AX,0xd
-       01a2:b7c8 0e              PUSH       CS
-       01a2:b7c9 50              PUSH       AX
-       01a2:b7ca 9a e8 64        CALLF      SUB_0e71_64e8
-                 71 0e
-       01a2:b7cf eb 04           JMP        LAB_01a2_b7d5
-       01a2:b7d1 02              ??         02h
-       01a2:b7d2 00              ??         00h
-       01a2:b7d3 00              ??         00h
-       01a2:b7d4 04              ??         04h
-                             LAB_01a2_b7d5                                   XREF[1]:     01a2:b7cf(j)  
-       01a2:b7d5 bb d6 a4        MOV        BX,0xa4d6
-       01a2:b7d8 1e              PUSH       DS
-       01a2:b7d9 07              POP        ES
-       01a2:b7da 06              PUSH       ES
-       01a2:b7db 53              PUSH       BX
-       01a2:b7dc 9a 1a 7e        CALLF      SUB_0e71_7e1a
-                 71 0e
-       01a2:b7e1 9a fc 77        CALLF      SUB_0e71_77fc
-                 71 0e
-       01a2:b7e6 90              NOP
-       01a2:b7e7 d9 06 d6 a4     FLD        float ptr [0xa4d6]
-       01a2:b7eb 90              NOP
-       01a2:b7ec 9b              WAIT
-       01a2:b7ed 9a 49 04        CALLF      FUN_0d75_0449                                    undefined FUN_0d75_0449()
-                 75 0d
-       01a2:b7f2 90              NOP
-       01a2:b7f3 d9 1e d6 a4     FSTP       float ptr [0xa4d6]
-       01a2:b7f7 90              NOP
-       01a2:b7f8 9b              WAIT
-       01a2:b7f9 90              NOP
-       01a2:b7fa d9 06 50 a5     FLD        float ptr { 1.0 }
-       01a2:b7fe 90              NOP
-       01a2:b7ff d9 06 d6 a4     FLD        float ptr [0xa4d6]
-       01a2:b803 90              NOP
-       01a2:b804 9b              WAIT
-       01a2:b805 9a 1d 04        CALLF      FPCOMPARE_2stack                                 undefined FPCOMPARE_2stack()
-                 75 0d
-       01a2:b80a 73 03           JNC        LAB_01a2_b80f
-       01a2:b80c e9 77 ff        JMP        FUN_01a2_b786
-                             LAB_01a2_b80f                                   XREF[1]:     01a2:b80a(j)  
-       01a2:b80f b8 01 00        MOV        AX,0x1
-       01a2:b812 50              PUSH       AX
-       01a2:b813 b8 1c 00        MOV        AX,0x1c
-       01a2:b816 50              PUSH       AX
-       01a2:b817 b8 01 00        MOV        AX,0x1
-       01a2:b81a 50              PUSH       AX
-       01a2:b81b b8 05 00        MOV        AX,0x5
-       01a2:b81e 50              PUSH       AX
-       01a2:b81f b8 04 00        MOV        AX,0x4
-       01a2:b822 50              PUSH       AX
-       01a2:b823 9a b2 61        CALLF      LOCATE
-                 71 0e
-       01a2:b828 b8 1c ba        MOV        AX,0xba1c
-       01a2:b82b 50              PUSH       AX
-       01a2:b82c 9a c8 76        CALLF      PRINT_STR_NEWLINE
-                 71 0e
-       01a2:b831 90              NOP
-       01a2:b832 d9 06 ee a4     FLD        float ptr [0xa4ee]
-       01a2:b836 90              NOP
-       01a2:b837 d9 06 d6 a4     FLD        float ptr [0xa4d6]
-       01a2:b83b 90              NOP
-       01a2:b83c 9b              WAIT
-       01a2:b83d 9a 1d 04        CALLF      FPCOMPARE_2stack                                 undefined FPCOMPARE_2stack()
-                 75 0d
-       01a2:b842 76 03           JBE        LAB_01a2_b847
-       01a2:b844 e9 c0 00        JMP        LAB_01a2_b907
-                             LAB_01a2_b847                                   XREF[1]:     01a2:b842(j)  
-       01a2:b847 90              NOP
-       01a2:b848 d9 06 50 a5     FLD        float ptr { 1.0 }
-       01a2:b84c 90              NOP
-       01a2:b84d d9 1e 06 a5     FSTP       float ptr [0xa506]
-       01a2:b851 90              NOP
-       01a2:b852 9b              WAIT
-       01a2:b853 90              NOP
-       01a2:b854 d9 06 d6 a4     FLD        float ptr [0xa4d6]
-       01a2:b858 90              NOP
-       01a2:b859 d9 1e 32 a5     FSTP       float ptr [0xa532]
-       01a2:b85d 90              NOP
-       01a2:b85e 9b              WAIT
-       01a2:b85f 90              NOP
-       01a2:b860 d9 06 50 a5     FLD        float ptr { 1.0 }
-       01a2:b864 e9 64 00        JMP        LAB_01a2_b8cb
-       01a2:b867 90              ??         90h
-                             LAB_01a2_b868                                   XREF[1]:     01a2:b8e3(j)  
-       01a2:b868 90              NOP
-       01a2:b869 d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b86d 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b872 d1 e0           SHL        AX,0x1
-       01a2:b874 d1 e0           SHL        AX,0x1
-       01a2:b876 05 cc 00        ADD        AX,0xcc
-       01a2:b879 8b f0           MOV        SI,AX
-       01a2:b87b 90              NOP
-       01a2:b87c d9 84 92 9c     FLD        float ptr [SI + 0x9c92]
-       01a2:b880 90              NOP
-       01a2:b881 d9 1e 0e a5     FSTP       float ptr [0xa50e]
-       01a2:b885 90              NOP
-       01a2:b886 9b              WAIT
-       01a2:b887 b8 f6 a4        MOV        AX,0xa4f6
-       01a2:b88a 50              PUSH       AX
-       01a2:b88b 90              NOP
-       01a2:b88c d9 06 06 a5     FLD        float ptr [0xa506]
-       01a2:b890 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b895 50              PUSH       AX
-       01a2:b896 90              NOP
-       01a2:b897 d9 06 0e a5     FLD        float ptr [0xa50e]
-       01a2:b89b 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b8a0 50              PUSH       AX
-       01a2:b8a1 9a ee 7f        CALLF      MID$
-                 71 0e
-       01a2:b8a6 50              PUSH       AX
-       01a2:b8a7 b8 36 a4        MOV        AX,0xa436
-       01a2:b8aa 50              PUSH       AX
-       01a2:b8ab 9a 78 7c        CALLF      SET_STRING
-                 71 0e
-       01a2:b8b0 90              NOP
-       01a2:b8b1 d9 06 06 a5     FLD        float ptr [0xa506]
-       01a2:b8b5 90              NOP
-       01a2:b8b6 d8 06 0e a5     FADD       float ptr [0xa50e]
-       01a2:b8ba 90              NOP
-       01a2:b8bb d9 1e 06 a5     FSTP       float ptr [0xa506]
-       01a2:b8bf 90              NOP
-       01a2:b8c0 9b              WAIT
-       01a2:b8c1 90              NOP
-       01a2:b8c2 d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b8c6 90              NOP
-       01a2:b8c7 d8 06 50 a5     FADD       float ptr { 1.0 }
-                             LAB_01a2_b8cb                                   XREF[1]:     01a2:b864(j)  
-       01a2:b8cb 90              NOP
-       01a2:b8cc d9 1e 3a 00     FSTP       float ptr [0x3a]
-       01a2:b8d0 90              NOP
-       01a2:b8d1 9b              WAIT
-       01a2:b8d2 90              NOP
-       01a2:b8d3 d9 06 32 a5     FLD        float ptr [0xa532]
-       01a2:b8d7 90              NOP
-       01a2:b8d8 d9 06 3a 00     FLD        float ptr [0x3a]
-       01a2:b8dc 90              NOP
-       01a2:b8dd 9b              WAIT
-       01a2:b8de 9a 1d 04        CALLF      FPCOMPARE_2stack                                 undefined FPCOMPARE_2stack()
-                 75 0d
-       01a2:b8e3 76 83           JBE        LAB_01a2_b868
-       01a2:b8e5 90              NOP
-       01a2:b8e6 d9 06 d6 a4     FLD        float ptr [0xa4d6]
-       01a2:b8ea 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:b8ef d1 e0           SHL        AX,0x1
-       01a2:b8f1 d1 e0           SHL        AX,0x1
-       01a2:b8f3 05 fc 03        ADD        AX,0x3fc
-       01a2:b8f6 8b f0           MOV        SI,AX
-       01a2:b8f8 90              NOP
-       01a2:b8f9 d9 84 92 9c     FLD        float ptr [SI + 0x9c92]
-       01a2:b8fd 90              NOP
-       01a2:b8fe d9 1e e2 a4     FSTP       float ptr [0xa4e2]
-       01a2:b902 90              NOP
-       01a2:b903 9b              WAIT
-       01a2:b904 e9 a5 01        JMP        LAB_01a2_baac
-                             LAB_01a2_b907                                   XREF[1]:     01a2:b844(j)  
-       01a2:b907 90              NOP
-       01a2:b908 d9 06 3e b4     FLD        float ptr [0xb43e]
-       01a2:b90c 90              NOP
-       01a2:b90d d9 06 ee a4     FLD        float ptr [0xa4ee]
-       01a2:b911 90              NOP
-       01a2:b912 9b              WAIT
-       01a2:b913 9a 1d 04        CALLF      FPCOMPARE_2stack                                 undefined FPCOMPARE_2stack()
-                 75 0d
-       01a2:b918 73 03           JNC        LAB_01a2_b91d
-       01a2:b91a e9 94 00        JMP        LAB_01a2_b9b1
-                             LAB_01a2_b91d                                   XREF[1]:     01a2:b918(j)  
-       01a2:b91d b8 20 03        MOV        AX,0x320
-       01a2:b920 50              PUSH       AX
-       01a2:b921 ff 36 b6 a6     PUSH       word ptr [0xa6b6]
-       01a2:b925 ff 36 b4 a6     PUSH       word ptr { 2.0 }
-       01a2:b929 9a ac 1d        CALLF      SOUND
-                 71 0e
-       01a2:b92e b8 90 01        MOV        AX,0x190
-       01a2:b931 50              PUSH       AX
-       01a2:b932 ff 36 b6 a6     PUSH       word ptr [0xa6b6]
-       01a2:b936 ff 36 b4 a6     PUSH       word ptr { 2.0 }
-       01a2:b93a 9a ac 1d        CALLF      SOUND
-                 71 0e
-       01a2:b93f b8 20 03        MOV        AX,0x320
-       01a2:b942 50              PUSH       AX
-       01a2:b943 ff 36 b6 a6     PUSH       word ptr [0xa6b6]
-       01a2:b947 ff 36 b4 a6     PUSH       word ptr { 2.0 }
-       01a2:b94b 9a ac 1d        CALLF      SOUND
-                 71 0e
-       01a2:b950 b8 90 01        MOV        AX,0x190
-       01a2:b953 50              PUSH       AX
-       01a2:b954 ff 36 b6 a6     PUSH       word ptr [0xa6b6]
-       01a2:b958 ff 36 b4 a6     PUSH       word ptr { 2.0 }
-       01a2:b95c 9a ac 1d        CALLF      SOUND
-                 71 0e
-       01a2:b961 b8 20 03        MOV        AX,0x320
-       01a2:b964 50              PUSH       AX
-       01a2:b965 ff 36 b6 a6     PUSH       word ptr [0xa6b6]
-       01a2:b969 ff 36 b4 a6     PUSH       word ptr { 2.0 }
-       01a2:b96d 9a ac 1d        CALLF      SOUND
-                 71 0e
-       01a2:b972 b8 90 01        MOV        AX,0x190
-       01a2:b975 50              PUSH       AX
-       01a2:b976 ff 36 b6 a6     PUSH       word ptr [0xa6b6]
-       01a2:b97a ff 36 b4 a6     PUSH       word ptr { 2.0 }
-       01a2:b97e 9a ac 1d        CALLF      SOUND
-                 71 0e
-       01a2:b983 b8 01 00        MOV        AX,0x1
-       01a2:b986 50              PUSH       AX
-       01a2:b987 b8 1c 00        MOV        AX,0x1c
-       01a2:b98a 50              PUSH       AX
-       01a2:b98b b8 01 00        MOV        AX,0x1
-       01a2:b98e 50              PUSH       AX
-       01a2:b98f b8 05 00        MOV        AX,0x5
-       01a2:b992 50              PUSH       AX
-       01a2:b993 b8 04 00        MOV        AX,0x4
-       01a2:b996 50              PUSH       AX
-       01a2:b997 9a b2 61        CALLF      LOCATE
-                 71 0e
-       01a2:b99c b8 54 ba        MOV        AX,0xba54
-       01a2:b99f 50              PUSH       AX
-       01a2:b9a0 9a c8 76        CALLF      PRINT_STR_NEWLINE
-                 71 0e
-       01a2:b9a5 e8 af 82        CALL       FUN_01a2_3c57                                    undefined FUN_01a2_3c57()
-       01a2:b9a8 e8 ac 82        CALL       FUN_01a2_3c57                                    undefined FUN_01a2_3c57()
-       01a2:b9ab e8 a9 82        CALL       FUN_01a2_3c57                                    undefined FUN_01a2_3c57()
-       01a2:b9ae e9 d5 fd        JMP        FUN_01a2_b786
-                             LAB_01a2_b9b1                                   XREF[1]:     01a2:b91a(j)  
-       01a2:b9b1 90              NOP
-       01a2:b9b2 d9 06 ee a4     FLD        float ptr [0xa4ee]
-       01a2:b9b6 90              NOP
-       01a2:b9b7 d9 06 d6 a4     FLD        float ptr [0xa4d6]
-       01a2:b9bb 90              NOP
-       01a2:b9bc 9b              WAIT
-       01a2:b9bd 9a 1d 04        CALLF      FPCOMPARE_2stack                                 undefined FPCOMPARE_2stack()
-                 75 0d
-       01a2:b9c2 77 03           JA         LAB_01a2_b9c7
-       01a2:b9c4 e9 11 00        JMP        LAB_01a2_b9d8
-                             LAB_01a2_b9c7                                   XREF[1]:     01a2:b9c2(j)  
-       01a2:b9c7 90              NOP
-       01a2:b9c8 d9 06 ee a4     FLD        float ptr [0xa4ee]
-       01a2:b9cc 90              NOP
-       01a2:b9cd d8 06 50 a5     FADD       float ptr { 1.0 }
-       01a2:b9d1 90              NOP
-       01a2:b9d2 d9 1e d6 a4     FSTP       float ptr [0xa4d6]
-       01a2:b9d6 90              NOP
-       01a2:b9d7 9b              WAIT
-                             LAB_01a2_b9d8                                   XREF[1]:     01a2:b9c4(j)  
-       01a2:b9d8 90              NOP
-       01a2:b9d9 d9 06 d6 a4     FLD        float ptr [0xa4d6]
-       01a2:b9dd 90              NOP
-       01a2:b9de d9 06 ee a4     FLD        float ptr [0xa4ee]
-       01a2:b9e2 90              NOP
-       01a2:b9e3 d8 06 50 a5     FADD       float ptr { 1.0 }
-       01a2:b9e7 90              NOP
-       01a2:b9e8 9b              WAIT
-       01a2:b9e9 9a 1d 04        CALLF      FPCOMPARE_2stack                                 undefined FPCOMPARE_2stack()
-                 75 0d
-       01a2:b9ee 74 03           JZ         LAB_01a2_b9f3
-       01a2:b9f0 e9 0c 00        JMP        LAB_01a2_b9ff
-                             LAB_01a2_b9f3                                   XREF[1]:     01a2:b9ee(j)  
-       01a2:b9f3 90              NOP
-       01a2:b9f4 d9 06 d6 a4     FLD        float ptr [0xa4d6]
-       01a2:b9f8 90              NOP
-       01a2:b9f9 d9 1e ee a4     FSTP       float ptr [0xa4ee]
-       01a2:b9fd 90              NOP
-       01a2:b9fe 9b              WAIT
-                             LAB_01a2_b9ff                                   XREF[1]:     01a2:b9f0(j)  
-       01a2:b9ff b8 01 00        MOV        AX,0x1
-       01a2:ba02 50              PUSH       AX
-       01a2:ba03 b8 1c 00        MOV        AX,0x1c
-       01a2:ba06 50              PUSH       AX
-       01a2:ba07 b8 01 00        MOV        AX,0x1
-       01a2:ba0a 50              PUSH       AX
-       01a2:ba0b b8 05 00        MOV        AX,0x5
-       01a2:ba0e 50              PUSH       AX
-       01a2:ba0f b8 04 00        MOV        AX,0x4
-       01a2:ba12 50              PUSH       AX
-       01a2:ba13 9a b2 61        CALLF      LOCATE
-                 71 0e
-       01a2:ba18 b8 7e ba        MOV        AX,0xba7e
-       01a2:ba1b 50              PUSH       AX
-       01a2:ba1c e8 00 00        CALL       LAB_01a2_ba1f
-                             LAB_01a2_ba1f                                   XREF[1]:     01a2:ba1c(j)  
-       01a2:ba1f 58              POP        AX
-       01a2:ba20 05 0d 00        ADD        AX,0xd
-       01a2:ba23 0e              PUSH       CS
-       01a2:ba24 50              PUSH       AX
-       01a2:ba25 9a e8 64        CALLF      SUB_0e71_64e8
-                 71 0e
-       01a2:ba2a eb 04           JMP        LAB_01a2_ba30
-       01a2:ba2c 02              ??         02h
-       01a2:ba2d 00              ??         00h
-       01a2:ba2e 01              ??         01h
-       01a2:ba2f 03              ??         03h
-                             LAB_01a2_ba30                                   XREF[1]:     01a2:ba2a(j)  
-       01a2:ba30 b8 36 a4        MOV        AX,0xa436
-       01a2:ba33 1e              PUSH       DS
-       01a2:ba34 50              PUSH       AX
-       01a2:ba35 33 c0           XOR        AX,AX
-       01a2:ba37 50              PUSH       AX
-       01a2:ba38 9a 20 7e        CALLF      SUB_0e71_7e20
-                 71 0e
-       01a2:ba3d 9a fc 77        CALLF      SUB_0e71_77fc
-                 71 0e
-       01a2:ba42 b8 36 a4        MOV        AX,0xa436
-       01a2:ba45 50              PUSH       AX
-       01a2:ba46 9a 21 7f        CALLF      LEN
-                 71 0e
-       01a2:ba4b 3d 09 00        CMP        AX,0x9
-       01a2:ba4e 7f 03           JG         LAB_01a2_ba53
-       01a2:ba50 e9 17 00        JMP        LAB_01a2_ba6a
-                             LAB_01a2_ba53                                   XREF[1]:     01a2:ba4e(j)  
-       01a2:ba53 b8 36 a4        MOV        AX,0xa436
-       01a2:ba56 50              PUSH       AX
-       01a2:ba57 b8 09 00        MOV        AX,0x9
-       01a2:ba5a 50              PUSH       AX
-       01a2:ba5b 9a ca 7f        CALLF      SUB_0e71_7fca
-                 71 0e
-       01a2:ba60 50              PUSH       AX
-       01a2:ba61 b8 36 a4        MOV        AX,0xa436
-       01a2:ba64 50              PUSH       AX
-       01a2:ba65 9a 78 7c        CALLF      SET_STRING
-                 71 0e
-                             LAB_01a2_ba6a                                   XREF[1]:     01a2:ba50(j)  
-       01a2:ba6a b8 f6 a4        MOV        AX,0xa4f6
-       01a2:ba6d 50              PUSH       AX
-       01a2:ba6e b8 36 a4        MOV        AX,0xa436
-       01a2:ba71 50              PUSH       AX
-       01a2:ba72 9a b1 7c        CALLF      STRING_CONCAT
-                 71 0e
-       01a2:ba77 50              PUSH       AX
-       01a2:ba78 b8 f6 a4        MOV        AX,0xa4f6
-       01a2:ba7b 50              PUSH       AX
-       01a2:ba7c 9a 78 7c        CALLF      SET_STRING
-                 71 0e
-       01a2:ba81 b8 36 a4        MOV        AX,0xa436
-       01a2:ba84 50              PUSH       AX
-       01a2:ba85 9a 21 7f        CALLF      LEN
-                 71 0e
-       01a2:ba8a 9a c4 03        CALLF      FUN_0d75_03c4                                    undefined FUN_0d75_03c4()
-                 75 0d
-       01a2:ba8f 90              NOP
-       01a2:ba90 d9 06 d6 a4     FLD        float ptr [0xa4d6]
-       01a2:ba94 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:ba99 d1 e0           SHL        AX,0x1
-       01a2:ba9b d1 e0           SHL        AX,0x1
-       01a2:ba9d 05 cc 00        ADD        AX,0xcc
-       01a2:baa0 8b f0           MOV        SI,AX
-       01a2:baa2 90              NOP
-       01a2:baa3 d9 9c 92 9c     FSTP       float ptr [SI + 0x9c92]
-       01a2:baa7 90              NOP
-       01a2:baa8 9b              WAIT
-       01a2:baa9 e9 5b f7        JMP        FUN_01a2_b207                                    undefined FUN_01a2_b207()
-                             -- Flow Override: CALL_RETURN (CALL_TERMINATOR)
-                             LAB_01a2_baac                                   XREF[1]:     01a2:b904(j)  
-       01a2:baac 90              NOP
-       01a2:baad d9 06 4c a6     FLD        float ptr { 0.0 }
-       01a2:bab1 90              NOP
-       01a2:bab2 d9 1e 36 a5     FSTP       float ptr [0xa536]
-       01a2:bab6 90              NOP
-       01a2:bab7 9b              WAIT
-       01a2:bab8 c3              RET
+' ============================================================
+' FUN_01a2_b786 = Lb786 -- select or register player for this game session
+' Called from: LIntroText (01a2:13e9); retry via b80c and b9ae self-JMPs
+' Shows score table, asks for player slot#, selects existing or registers new.
+' Prompt DS:0xb9f4 = "Enter player # (99 for new player):" (35 chars)
+' Clear  DS:0xba1c = 51 spaces (used to blank the prompt row after input)
+' Error  DS:0xba54 = "PLAYER FILE FULL.  USE EXISTING NAME." (37 chars)
+' Name prompt DS:0xba7e = "Enter player name: " (19 chars)
+' Max slots DS:0xb43e = 43.0; sound dur DS:0xa6b4 = 2.0
+' INPUT for player#  uses SUB_0e71_7e1a + 77fc (float input) then FUN_0d75_0449
+' INPUT for name     uses SUB_0e71_7e20 + 77fc (string input to Sa436$/playerName$)
+' SUB_0e71_7fca = LEFT$(str, n) -- truncate to 9 chars max
+' SUB_0e71_7cb1 = STRING_CONCAT; FUN_0d75_03c4 = CSNG (int-to-float for hist_namelen)
+' On existing player exit: Fa4e2!=hist_avg![slotNum!], Fa536!=0, RETURN
+' On new player: GOTO Lb207 (tail-call; Lb207 RETURN goes to our caller)
+' ============================================================
+Lb786:   ' Lb786=Lb786
+  compName$ = ""     ' Sa432$ DS:0xa432 -- clear before each attempt (SET_STRING "" -> a432)
+  LOCATE 28, 5       ' row=0x1c=28, col=0x5=5
+  COLOR 15           ' bright white prompt text
+  INPUT "Enter player # (99 for new player):"; slotNum!   ' Fa4d6! DS:0xa4d6
+  ' Note: QB INPUT reads the string, QB runtime converts to float in slotNum!
+  ' FUN_0d75_0449 at b7ed re-normalizes the float (translated as no-op in BASIC)
+
+  ' Validate: slot must be >= 1  (JNC b80f: retry when slotNum! < 1)
+  IF slotNum! < 1 THEN GOTO Lb786
+
+  ' Clear the prompt row (DS:0xba1c = 51 spaces)
+  LOCATE 28, 5
+  PRINT "                                                   "   ' 51 spaces
+
+  ' Route: existing slot (<=numPlayers!) vs new/overflow (>numPlayers!)
+  IF slotNum! > numPlayers! THEN GOTO Lb786New   ' JMP b907
+
+  ' ---------------------------------------------------------------
+  ' Existing player path (b847-b903)
+  ' Scan namesBuf$ for the selected slot to extract playerName$
+  ' ---------------------------------------------------------------
+Lb786Exist:   ' LAB_01a2_b847
+  namePos! = 1          ' Fa506! -- reset to start of namesBuf$ (DS:0xa506)
+  slotCopy! = slotNum!  ' Fa532! DS:0xa532 -- loop limit for name extraction
+  ' NOTE: loopK! (=F003a!) reused as name-scan counter below
+  FOR loopK! = 1 TO slotCopy!
+    nameLen! = hist_namelen!(INT(loopK!))   ' Fa50e! DS:0xa50e (stride 0xcc from 0x9c92)
+    playerName$ = MID$(namesBuf$, INT(namePos!), INT(nameLen!))   ' Sa436$ DS:0xa436
+    namePos! = namePos! + nameLen!   ' advance past this name
+  NEXT loopK!
+  ' playerName$ now holds the name for the chosen slot (last iteration of loop)
+
+  ' Load this player's historical average into Fa4e2! for LFinalTally scoring
+  Fa4e2! = hist_avg!(INT(slotNum!))   ' DS:0xa08e + slot*4 (hist_avg stride 0x3fc)
+  Fa536! = 0   ' DS:0xa536 -- 0 = existing player selected (cleared on normal exit)
+  RETURN
+
+  ' ---------------------------------------------------------------
+  ' New player (overflow) path (b907+)
+  ' ---------------------------------------------------------------
+Lb786New:   ' LAB_01a2_b907
+  ' If roster is at max capacity (43 slots), play error tones and retry
+  IF numPlayers! >= 43 THEN   ' DS:0xb43e = 43.0
+    SOUND 800, 2   ' DS:0xa6b4=2.0 dur; alternating high/low tones x3 pairs
+    SOUND 400, 2
+    SOUND 800, 2
+    SOUND 400, 2
+    SOUND 800, 2
+    SOUND 400, 2
+    LOCATE 28, 5
+    PRINT "PLAYER FILE FULL.  USE EXISTING NAME."   ' DS:0xba54
+    GOSUB LPause263a   ' FUN_01a2_3c57 -- ~0.263 s delay
+    GOSUB LPause263a
+    GOSUB LPause263a
+    GOTO Lb786   ' retry
+  END IF
+
+  ' Clamp entered number to the next available slot (b9b1-b9d7)
+  ' Any number >numPlayers! (e.g. the conventional "99") becomes numPlayers!+1
+  IF slotNum! > numPlayers! THEN   ' JA b9c7
+    slotNum! = numPlayers! + 1
+  END IF
+  ' If the slot is exactly one past the current count, expand the roster (b9d8-b9fd)
+  IF slotNum! = numPlayers! + 1 THEN   ' JZ b9f3
+    numPlayers! = slotNum!   ' Fa4ee! DS:0xa4ee -- increment count
+  END IF
+
+  ' Get the new player's computer name (9-char max)
+  LOCATE 28, 5
+  INPUT "Enter player name: "; playerName$   ' Sa436$ DS:0xa436; SUB_0e71_7e20
+  IF LEN(playerName$) > 9 THEN              ' JG ba53: SUB_0e71_7fca = LEFT$
+    playerName$ = LEFT$(playerName$, 9)
+  END IF
+
+  ' Append name to namesBuf$ and record its length in the history array
+  namesBuf$ = namesBuf$ + playerName$          ' STRING_CONCAT -> Sa4f6$ DS:0xa4f6
+  hist_namelen!(INT(slotNum!)) = CSNG(LEN(playerName$))   ' FUN_0d75_03c4 = CSNG; DS:0x9d5e+slot*4
+
+  ' Redisplay the score table then return to our caller via Lb207's RETURN
+  ' (JMP b207 = tail-call: Lb207 executes and its RETURN pops back to our caller)
+  GOTO Lb207
                              **************************************************************
                              *                          FUNCTION                          *
                              **************************************************************
@@ -3151,321 +1897,46 @@ LRepairUI:   ' LRepairUI=Lbab9 -- repair-wait UI: error msg, computer animation,
                              FUN_01a2_bab9                                   XREF[3]:     FUN_01a2_902f:01a2:90a4(c),
                                                                                           FUN_01a2_90ad:01a2:90ee(c), 
                                                                                           FUN_01a2_90f7:01a2:9167(c)  
-       01a2:bab9 b8 01 00        MOV        AX,0x1
-       01a2:babc 50              PUSH       AX
-       01a2:babd b8 1b 00        MOV        AX,0x1b
-       01a2:bac0 50              PUSH       AX
-       01a2:bac1 b8 01 00        MOV        AX,0x1
-       01a2:bac4 50              PUSH       AX
-       01a2:bac5 b8 06 00        MOV        AX,0x6
-       01a2:bac8 50              PUSH       AX
-       01a2:bac9 b8 04 00        MOV        AX,0x4
-       01a2:bacc 50              PUSH       AX
-       01a2:bacd 9a b2 61        CALLF      LOCATE
-                 71 0e
-       01a2:bad2 b8 01 00        MOV        AX,0x1
-       01a2:bad5 50              PUSH       AX
-       01a2:bad6 b8 0d 00        MOV        AX,0xd
-       01a2:bad9 50              PUSH       AX
-       01a2:bada b8 02 00        MOV        AX,0x2
-       01a2:badd 50              PUSH       AX
-       01a2:bade 9a 86 61        CALLF      COLOR
-                 71 0e
-       01a2:bae3 b8 c6 a4        MOV        AX,0xa4c6
-       01a2:bae6 50              PUSH       AX
-       01a2:bae7 9a c8 76        CALLF      PRINT_STR_NEWLINE
-                 71 0e
-                             LAB_01a2_baec                                   XREF[1]:     01a2:bbfe(j)  
-       01a2:baec 9a 00 07        CALLF      TIMER                                            undefined TIMER()
-                 71 0e
-       01a2:baf1 8b f0           MOV        SI,AX
-       01a2:baf3 90              NOP
-       01a2:baf4 d9 04           FLD        float ptr [SI]
-       01a2:baf6 90              NOP
-       01a2:baf7 d9 1e 5e a4     FSTP       float ptr [0xa45e]
-       01a2:bafb 90              NOP
-       01a2:bafc 9b              WAIT
-       01a2:bafd 90              NOP
-       01a2:bafe d9 06 50 a5     FLD        float ptr { 1.0 }
-       01a2:bb02 e9 c4 00        JMP        LAB_01a2_bbc9
-       01a2:bb05 90              ??         90h
-                             LAB_01a2_bb06                                   XREF[1]:     01a2:bbe3(j)  
-       01a2:bb06 90              NOP
-       01a2:bb07 d9 06 66 a4     FLD        float ptr [0xa466]
-       01a2:bb0b 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:bb10 d1 e0           SHL        AX,0x1
-       01a2:bb12 d1 e0           SHL        AX,0x1
-       01a2:bb14 05 b0 00        ADD        AX,0xb0
-       01a2:bb17 8b f0           MOV        SI,AX
-       01a2:bb19 90              NOP
-       01a2:bb1a d9 84 46 a2     FLD        float ptr [SI + Fa246!(i,j)]
-       01a2:bb1e 90              NOP
-       01a2:bb1f d9 1e 2e a2     FSTP       float ptr [0xa22e]
-       01a2:bb23 90              NOP
-       01a2:bb24 9b              WAIT
-       01a2:bb25 90              NOP
-       01a2:bb26 d9 06 66 a4     FLD        float ptr [0xa466]
-       01a2:bb2a 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:bb2f d1 e0           SHL        AX,0x1
-       01a2:bb31 d1 e0           SHL        AX,0x1
-       01a2:bb33 05 84 00        ADD        AX,0x84
-       01a2:bb36 8b f0           MOV        SI,AX
-       01a2:bb38 90              NOP
-       01a2:bb39 d9 84 46 a2     FLD        float ptr [SI + Fa246!(i,j)]
-       01a2:bb3d 90              NOP
-       01a2:bb3e d9 1e 32 a2     FSTP       float ptr [0xa232]
-       01a2:bb42 90              NOP
-       01a2:bb43 9b              WAIT
-       01a2:bb44 90              NOP
-       01a2:bb45 d9 06 4c a6     FLD        float ptr { 0.0 }
-       01a2:bb49 90              NOP
-       01a2:bb4a d9 06 66 a4     FLD        float ptr [0xa466]
-       01a2:bb4e 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:bb53 d1 e0           SHL        AX,0x1
-       01a2:bb55 d1 e0           SHL        AX,0x1
-       01a2:bb57 05 2c 00        ADD        AX,0x2c
-       01a2:bb5a 8b f0           MOV        SI,AX
-       01a2:bb5c 90              NOP
-       01a2:bb5d d9 84 46 a2     FLD        float ptr [SI + Fa246!(i,j)]
-       01a2:bb61 90              NOP
-       01a2:bb62 9b              WAIT
-       01a2:bb63 9a 1d 04        CALLF      FPCOMPARE_2stack                                 undefined FPCOMPARE_2stack()
-                 75 0d
-       01a2:bb68 75 03           JNZ        LAB_01a2_bb6d
-       01a2:bb6a e9 03 00        JMP        LAB_01a2_bb70
-                             LAB_01a2_bb6d                                   XREF[1]:     01a2:bb68(j)  
-       01a2:bb6d e9 06 00        JMP        LAB_01a2_bb76
-                             LAB_01a2_bb70                                   XREF[1]:     01a2:bb6a(j)  
-       01a2:bb70 e8 af 79        CALL       FUN_01a2_3522                                    undefined FUN_01a2_3522()
-       01a2:bb73 e9 49 00        JMP        LAB_01a2_bbbf
-                             LAB_01a2_bb76                                   XREF[1]:     01a2:bb6d(j)  
-       01a2:bb76 9a 00 07        CALLF      TIMER                                            undefined TIMER()
-                 71 0e
-       01a2:bb7b 8b f0           MOV        SI,AX
-       01a2:bb7d 90              NOP
-       01a2:bb7e d9 04           FLD        float ptr [SI]
-       01a2:bb80 90              NOP
-       01a2:bb81 d9 1e 5e a4     FSTP       float ptr [0xa45e]
-       01a2:bb85 90              NOP
-       01a2:bb86 9b              WAIT
-       01a2:bb87 90              NOP
-       01a2:bb88 d9 06 66 a4     FLD        float ptr [0xa466]
-       01a2:bb8c 90              NOP
-       01a2:bb8d d9 1e 6a a4     FSTP       float ptr [0xa46a]
-       01a2:bb91 90              NOP
-       01a2:bb92 9b              WAIT
-       01a2:bb93 90              NOP
-       01a2:bb94 d9 06 5e a4     FLD        float ptr [0xa45e]
-       01a2:bb98 90              NOP
-       01a2:bb99 d9 06 6a a4     FLD        float ptr [0xa46a]
-       01a2:bb9d 9a d8 03        CALLF      Implicit_FP_to_INT                                    undefined Implicit_FP_to_INT()
-                 75 0d
-       01a2:bba2 d1 e0           SHL        AX,0x1
-       01a2:bba4 d1 e0           SHL        AX,0x1
-       01a2:bba6 05 58 00        ADD        AX,0x58
-       01a2:bba9 8b f0           MOV        SI,AX
-       01a2:bbab 90              NOP
-       01a2:bbac d9 84 46 a2     FLD        float ptr [SI + Fa246!(i,j)]
-       01a2:bbb0 90              NOP
-       01a2:bbb1 9b              WAIT
-       01a2:bbb2 9a 1d 04        CALLF      FPCOMPARE_2stack                                 undefined FPCOMPARE_2stack()
-                 75 0d
-       01a2:bbb7 72 03           JC         LAB_01a2_bbbc
-       01a2:bbb9 e9 03 00        JMP        LAB_01a2_bbbf
-                             LAB_01a2_bbbc                                   XREF[1]:     01a2:bbb7(j)  
-       01a2:bbbc e8 b0 7b        CALL       FUN_01a2_376f                                    undefined FUN_01a2_376f()
-                             LAB_01a2_bbbf                                   XREF[2]:     01a2:bb73(j), 01a2:bbb9(j)  
-       01a2:bbbf 90              NOP
-       01a2:bbc0 d9 06 66 a4     FLD        float ptr [0xa466]
-       01a2:bbc4 90              NOP
-       01a2:bbc5 d8 06 50 a5     FADD       float ptr { 1.0 }
-                             LAB_01a2_bbc9                                   XREF[1]:     01a2:bb02(j)  
-       01a2:bbc9 90              NOP
-       01a2:bbca d9 1e 66 a4     FSTP       float ptr [0xa466]
-       01a2:bbce 90              NOP
-       01a2:bbcf 9b              WAIT
-       01a2:bbd0 90              NOP
-       01a2:bbd1 d9 06 8c af     FLD        float ptr { 10.0 }
-       01a2:bbd5 90              NOP
-       01a2:bbd6 d9 06 66 a4     FLD        float ptr [0xa466]
-       01a2:bbda 90              NOP
-       01a2:bbdb 9b              WAIT
-       01a2:bbdc 9a 1d 04        CALLF      FPCOMPARE_2stack                                 undefined FPCOMPARE_2stack()
-                 75 0d
-       01a2:bbe1 77 03           JA         LAB_01a2_bbe6
-       01a2:bbe3 e9 20 ff        JMP        LAB_01a2_bb06
-                             LAB_01a2_bbe6                                   XREF[1]:     01a2:bbe1(j)  
-       01a2:bbe6 90              NOP
-       01a2:bbe7 d9 06 ae a4     FLD        float ptr [0xa4ae]
-       01a2:bbeb 9a 00 07        CALLF      TIMER                                            undefined TIMER()
-                 71 0e
-       01a2:bbf0 8b f0           MOV        SI,AX
-       01a2:bbf2 90              NOP
-       01a2:bbf3 d9 04           FLD        float ptr [SI]
-       01a2:bbf5 90              NOP
-       01a2:bbf6 9b              WAIT
-       01a2:bbf7 9a 1d 04        CALLF      FPCOMPARE_2stack                                 undefined FPCOMPARE_2stack()
-                 75 0d
-       01a2:bbfc 73 03           JNC        LAB_01a2_bc01
-       01a2:bbfe e9 eb fe        JMP        LAB_01a2_baec
-                             LAB_01a2_bc01                                   XREF[1]:     01a2:bbfc(j)  
-       01a2:bc01 b8 b8 0b        MOV        AX,0xbb8
-       01a2:bc04 50              PUSH       AX
-       01a2:bc05 ff 36 76 a6     PUSH       word ptr [0xa676]
-       01a2:bc09 ff 36 74 a6     PUSH       word ptr { 4.0 }
-       01a2:bc0d 9a ac 1d        CALLF      SOUND
-                 71 0e
-       01a2:bc12 b8 01 00        MOV        AX,0x1
-       01a2:bc15 50              PUSH       AX
-       01a2:bc16 b8 1b 00        MOV        AX,0x1b
-       01a2:bc19 50              PUSH       AX
-       01a2:bc1a b8 01 00        MOV        AX,0x1
-       01a2:bc1d 50              PUSH       AX
-       01a2:bc1e b8 06 00        MOV        AX,0x6
-       01a2:bc21 50              PUSH       AX
-       01a2:bc22 b8 04 00        MOV        AX,0x4
-       01a2:bc25 50              PUSH       AX
-       01a2:bc26 9a b2 61        CALLF      LOCATE
-                 71 0e
-       01a2:bc2b b8 01 00        MOV        AX,0x1
-       01a2:bc2e 50              PUSH       AX
-       01a2:bc2f b8 02 00        MOV        AX,0x2
-       01a2:bc32 50              PUSH       AX
-       01a2:bc33 50              PUSH       AX
-       01a2:bc34 9a 86 61        CALLF      COLOR
-                 71 0e
-       01a2:bc39 b8 ca a4        MOV        AX,0xa4ca
-       01a2:bc3c 50              PUSH       AX
-       01a2:bc3d 9a c8 76        CALLF      PRINT_STR_NEWLINE
-                 71 0e
-       01a2:bc42 b8 3e a7        MOV        AX,""
-       01a2:bc45 50              PUSH       AX
-       01a2:bc46 b8 6e a4        MOV        AX,0xa46e
-       01a2:bc49 50              PUSH       AX
-       01a2:bc4a 9a 78 7c        CALLF      SET_STRING
-                 71 0e
-       01a2:bc4f 90              NOP
-       01a2:bc50 d9 06 50 a5     FLD        float ptr { 1.0 }
-       01a2:bc54 e9 0e 00        JMP        LAB_01a2_bc65
-       01a2:bc57 90              ??         90h
-                             LAB_01a2_bc58                                   XREF[1]:     01a2:bc7d(j)  
-       01a2:bc58 e8 35 80        CALL       FUN_01a2_3c90                                    undefined FUN_01a2_3c90()
-       01a2:bc5b 90              NOP
-       01a2:bc5c d9 06 3a a5     FLD        float ptr [0xa53a]
-       01a2:bc60 90              NOP
-       01a2:bc61 d8 06 50 a5     FADD       float ptr { 1.0 }
-                             LAB_01a2_bc65                                   XREF[1]:     01a2:bc54(j)  
-       01a2:bc65 90              NOP
-       01a2:bc66 d9 1e 3a a5     FSTP       float ptr [0xa53a]
-       01a2:bc6a 90              NOP
-       01a2:bc6b 9b              WAIT
-       01a2:bc6c 90              NOP
-       01a2:bc6d d9 06 24 a6     FLD        float ptr { 3.0 }
-       01a2:bc71 90              NOP
-       01a2:bc72 d9 06 3a a5     FLD        float ptr [0xa53a]
-       01a2:bc76 90              NOP
-       01a2:bc77 9b              WAIT
-       01a2:bc78 9a 1d 04        CALLF      FPCOMPARE_2stack                                 undefined FPCOMPARE_2stack()
-                 75 0d
-       01a2:bc7d 76 d9           JBE        LAB_01a2_bc58
-       01a2:bc7f b8 01 00        MOV        AX,0x1
-       01a2:bc82 50              PUSH       AX
-       01a2:bc83 b8 1b 00        MOV        AX,0x1b
-       01a2:bc86 50              PUSH       AX
-       01a2:bc87 b8 01 00        MOV        AX,0x1
-       01a2:bc8a 50              PUSH       AX
-       01a2:bc8b b8 06 00        MOV        AX,0x6
-       01a2:bc8e 50              PUSH       AX
-       01a2:bc8f b8 04 00        MOV        AX,0x4
-       01a2:bc92 50              PUSH       AX
-       01a2:bc93 9a b2 61        CALLF      LOCATE
-                 71 0e
-       01a2:bc98 b8 96 ba        MOV        AX,0xba96
-       01a2:bc9b 50              PUSH       AX
-       01a2:bc9c 9a c8 76        CALLF      PRINT_STR_NEWLINE
-                 71 0e
-       01a2:bca1 c3              RET
-Lbca2:   ' Lbca2=Lbca2 -- end-of-game handler (FUN_01a2_bca2, not yet decompiled)
-                             **************************************************************
-                             *                          FUNCTION                          *
-                             **************************************************************
-                             undefined __cdecl16near FUN_01a2_bca2()
-             undefined         <UNASSIGNED>   <RETURN>
-                             FUN_01a2_bca2                                   XREF[3]:     FUN_01a2_0d85:01a2:13db(c), 
-                                                                                          FUN_01a2_9170:01a2:9ae3(c), 
-                                                                                          FUN_01a2_9c28:01a2:ad8a(c)  
-       01a2:bca2 b8 01 00        MOV        AX,0x1
-       01a2:bca5 50              PUSH       AX
-       01a2:bca6 b8 0f 00        MOV        AX,0xf
-       01a2:bca9 50              PUSH       AX
-       01a2:bcaa b8 02 00        MOV        AX,0x2
-       01a2:bcad 50              PUSH       AX
-       01a2:bcae 9a 86 61        CALLF      COLOR
-                 71 0e
-       01a2:bcb3 b8 3e a7        MOV        AX,""
-       01a2:bcb6 50              PUSH       AX
-       01a2:bcb7 b8 42 a2        MOV        AX,0xa242
-       01a2:bcba 50              PUSH       AX
-       01a2:bcbb 9a 78 7c        CALLF      SET_STRING
-                 71 0e
-       01a2:bcc0 b8 01 00        MOV        AX,0x1
-       01a2:bcc3 50              PUSH       AX
-       01a2:bcc4 b8 1e 00        MOV        AX,0x1e
-       01a2:bcc7 50              PUSH       AX
-       01a2:bcc8 b8 01 00        MOV        AX,0x1
-       01a2:bccb 50              PUSH       AX
-       01a2:bccc b8 23 00        MOV        AX,0x23
-       01a2:bccf 50              PUSH       AX
-       01a2:bcd0 b8 04 00        MOV        AX,0x4
-       01a2:bcd3 50              PUSH       AX
-       01a2:bcd4 9a b2 61        CALLF      LOCATE
-                 71 0e
-       01a2:bcd9 b8 c6 ba        MOV        AX,0xbac6
-       01a2:bcdc 50              PUSH       AX
-       01a2:bcdd 9a c3 76        CALLF      PRINT_STR_SEMICOLON
-                 71 0e
-                             LAB_01a2_bce2                                   XREF[1]:     01a2:bd1e(j)  
-       01a2:bce2 b8 42 a2        MOV        AX,0xa242
-       01a2:bce5 50              PUSH       AX
-       01a2:bce6 9a 21 7f        CALLF      LEN
-                 71 0e
-       01a2:bceb 0b c0           OR         AX,AX
-       01a2:bced 74 03           JZ         LAB_01a2_bcf2
-       01a2:bcef e9 2e 00        JMP        LAB_01a2_bd20
-                             LAB_01a2_bcf2                                   XREF[1]:     01a2:bced(j)  
-       01a2:bcf2 9a 30 7c        CALLF      INKEY$
-                 71 0e
-       01a2:bcf7 50              PUSH       AX
-       01a2:bcf8 b8 42 a2        MOV        AX,0xa242
-       01a2:bcfb 50              PUSH       AX
-       01a2:bcfc 9a 78 7c        CALLF      SET_STRING
-                 71 0e
-       01a2:bd01 b8 1b 00        MOV        AX,0x1b
-       01a2:bd04 50              PUSH       AX
-       01a2:bd05 9a 2d 7d        CALLF      CHR$
-                 71 0e
-       01a2:bd0a 50              PUSH       AX
-       01a2:bd0b b8 42 a2        MOV        AX,0xa242
-       01a2:bd0e 50              PUSH       AX
-       01a2:bd0f 9a ee 7c        CALLF      STRING_COMPARE
-                 71 0e
-       01a2:bd14 74 03           JZ         LAB_01a2_bd19
-       01a2:bd16 e9 05 00        JMP        LAB_01a2_bd1e
-                             LAB_01a2_bd19                                   XREF[1]:     01a2:bd14(j)  
-       01a2:bd19 9a 23 00        CALLF      SUB_0e71_8453
-                 b4 16
-                             LAB_01a2_bd1e                                   XREF[1]:     01a2:bd16(j)  
-       01a2:bd1e eb c2           JMP        LAB_01a2_bce2
-                             LAB_01a2_bd20                                   XREF[1]:     01a2:bcef(j)  
-       01a2:bd20 b8 3e a7        MOV        AX,""
-       01a2:bd23 50              PUSH       AX
-       01a2:bd24 b8 42 a2        MOV        AX,0xa242
-       01a2:bd27 50              PUSH       AX
-       01a2:bd28 9a 78 7c        CALLF      SET_STRING
-                 71 0e
-       01a2:bd2d c3              RET
-       01a2:bd2e 00              ??         00h
-       01a2:bd2f 00              ??         00h
+LRepairUI:   ' LRepairUI=Lbab9 -- wait for player lockout timer, animating all computers
+  LOCATE 27, 6
+  COLOR 13
+  PRINT lockMsg$   ' Sa4c6$; lockout error msg (set by caller before GOSUB)
+LRepairWait:   ' LAB_01a2_baec -- outer loop: repeat until repairEnd! expires
+  FOR compI! = 1 TO 10
+    drawX! = compStat!(compI!, 4)        ' X screen coord (col j=4, offset 0xb0)
+    drawY! = compStat!(compI!, 3)        ' Y screen coord (col j=3, offset 0x84)
+    IF compStat!(compI!, 1) = 0 THEN    ' col j=1, offset 0x2c: 0 = undamaged (OK)
+      GOSUB LAnimDmg                     ' animate healthy computer screen
+    ELSE                                 ' damaged -- check if Al's repair time has elapsed
+      curTime! = TIMER
+      alTarget! = compI!
+      IF compStat!(compI!, 2) < curTime! THEN GOSUB LAlFix   ' col j=2 repair due time
+    END IF
+  NEXT compI!
+  IF TIMER < repairEnd! THEN GOTO LRepairWait   ' JNC bc01: exit when TIMER >= repairEnd!
+
+  ' Lockout expired: alert tone, display ready message, reset input buffer
+  SOUND 3000, 4
+  LOCATE 27, 6
+  COLOR 2
+  PRINT rstMsg$   ' Sa4ca$; ready/OK message (set by caller before GOSUB)
+  cmdBuf$ = ""    ' Sa46e$; clear command input accumulator
+  GOSUB LPause263b
+  GOSUB LPause263b
+  GOSUB LPause263b
+  LOCATE 27, 6
+  PRINT "                                           "   ' 43 spaces (DS:0xba96) -- clear msg row
+  RETURN
+Lbca2:   ' Lbca2=Lbca2 -- end-of-game: show "hit any key" prompt, wait for keypress, ESC quits
+  COLOR 15
+  keyIn$ = ""   ' Sa242$; SET_STRING empty (DS:0xa73e) -> Sa242$ (DS:0xa242)
+  LOCATE 30, 35
+  PRINT "Hit any key to continue, or <Esc> to quit";   ' DS:0xbac6 (41 chars); semicolon=no newline
+Lbca2Wait:   ' LAB_01a2_bce2 -- key-wait loop
+  IF LEN(keyIn$) > 0 THEN   ' got a non-ESC key last iteration -- any key exits
+    keyIn$ = ""
+    RETURN
+  END IF
+  keyIn$ = INKEY$
+  IF keyIn$ = CHR$(27) THEN END   ' ESC quits program (SUB_0e71_8453 = END runtime)
+  GOTO Lbca2Wait

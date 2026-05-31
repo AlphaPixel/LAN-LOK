@@ -1,0 +1,29 @@
+' ============================================================
+' FUN_01a2_ae3d = LLoadPlayers -- read player history from "players" file
+' Called ONCE from ENTRY (01a2:01a0), immediately after RANDOMIZE TIMER,
+'   before the L01a3 game-restart loop begins.
+' Reads numPlayers! player slots; stores history into in-memory arrays
+'   at DS:0x9c92 + per-field offset + INT(loopK!)*4.
+' DS:0xb8fa = string descriptor {len=7, ptr=0xb8fe} = "players"
+' ============================================================
+LLoadPlayers:   ' LLoadPlayers=Lae3d
+  ' OPEN "players" FOR INPUT AS #1
+  ' (SUB_0e71_4226: args 0xb8fa="players" desc, type=1, 0xffff, filenum=1)
+  OPEN "players" FOR INPUT AS #1
+  INPUT #1, numPlayers!   ' total player history slots (DS:0xa4ee = 16)
+  playersLim! = numPlayers!   ' save loop limit (DS:0xa4f2)
+  ' NOTE: loopK! (=F003a!) reused as player-slot index here -- not a timing loop
+  FOR loopK! = 1 TO playersLim!
+    ' --- read and cache one player slot ---
+    INPUT #1, compName$   ' player machine name
+    ' orig: CSNG(LEN(compName$)) stored at hist_namelen!(INT(loopK!)) DS:0x9d5e+slot*4
+    namesBuf$ = namesBuf$ + compName$   ' accumulate all player names (DS:0xa4f6)
+    INPUT #1, histHiSc!   ' high score; stored at hist_hiScore!(INT(loopK!)) DS:0x9e2a+slot*4
+    INPUT #1, Fa4de!      ' game count;  stored at hist_games!(INT(loopK!)) DS:0xa15a+slot*4
+    INPUT #1, Fa4fe!      ' (field 4, purpose TBD); stored at DS:0x9ef6+slot*4
+    INPUT #1, Fa502!      ' (field 5, purpose TBD); stored at DS:0x9fc2+slot*4
+    INPUT #1, Fa4e2!      ' running avg;  stored at hist_avg!(INT(loopK!)) DS:0xa08e+slot*4
+  NEXT loopK!
+  ' CLOSE #1  (SUB_0e71_4452 with args filenum=1, count=1)
+  CLOSE #1
+  RETURN

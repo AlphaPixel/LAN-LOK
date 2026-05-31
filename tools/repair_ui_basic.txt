@@ -1,0 +1,46 @@
+' ============================================================
+' FUN_01a2_bab9 = LRepairUI -- player lockout wait loop
+' Called from: LSelfPJam (01a2:9167), LSelfLock (01a2:9167?), LSelfErase (01a2:9167?)
+'   via GOSUB after caller sets lockMsg$, rstMsg$, and repairEnd! = TIMER + lockout_secs
+' Displays lockMsg$ at row 27, col 6 (COLOR 13 = light magenta).
+' Outer loop: repeats until TIMER >= repairEnd! (player lockout expires).
+'   Inner FOR compI!=1..10: for each computer --
+'     if undamaged (compStat!(i,1)=0): GOSUB LAnimDmg (animate screen)
+'     if damaged: read curTime!=TIMER, alTarget!=compI!
+'       if compStat!(i,2) < curTime! (repair time expired): GOSUB LAlFix
+' On exit: SOUND 3000,4; COLOR 2; PRINT rstMsg$; cmdBuf$=""; 3x LPause263b; clear row; RETURN
+' DS:0xba96 = 43 spaces (clear string); DS:0xa4c6 = lockMsg$ (runtime-set);
+'   DS:0xa4ca = rstMsg$ (runtime-set); DS:0xa46e = cmdBuf$; DS:0xa4ae = repairEnd!
+' compStat! col offsets: j=1 (0x2c) damage, j=2 (0x58) repair time, j=3 (0x84) Y, j=4 (0xb0) X
+' ============================================================
+LRepairUI:   ' LRepairUI=Lbab9 -- wait for player lockout timer, animating all computers
+  LOCATE 27, 6
+  COLOR 13
+  PRINT lockMsg$   ' Sa4c6$; lockout error msg (set by caller before GOSUB)
+LRepairWait:   ' LAB_01a2_baec -- outer loop: repeat until repairEnd! expires
+  FOR compI! = 1 TO 10
+    drawX! = compStat!(compI!, 4)        ' X screen coord (col j=4, offset 0xb0)
+    drawY! = compStat!(compI!, 3)        ' Y screen coord (col j=3, offset 0x84)
+    IF compStat!(compI!, 1) = 0 THEN    ' col j=1, offset 0x2c: 0 = undamaged (OK)
+      GOSUB LAnimDmg                     ' animate healthy computer screen
+    ELSE                                 ' damaged -- check if Al's repair time has elapsed
+      curTime! = TIMER
+      alTarget! = compI!
+      IF compStat!(compI!, 2) < curTime! THEN GOSUB LAlFix   ' col j=2 repair due time
+    END IF
+  NEXT compI!
+  IF TIMER < repairEnd! THEN GOTO LRepairWait   ' JNC bc01: exit when TIMER >= repairEnd!
+
+  ' Lockout expired: alert tone, display ready message, reset input buffer
+  SOUND 3000, 4
+  LOCATE 27, 6
+  COLOR 2
+  PRINT rstMsg$   ' Sa4ca$; ready/OK message (set by caller before GOSUB)
+  cmdBuf$ = ""    ' Sa46e$; clear command input accumulator (SET_STRING "" -> a46e)
+  GOSUB LPause263b
+  GOSUB LPause263b
+  GOSUB LPause263b
+  LOCATE 27, 6
+  PRINT "                                           "   ' 43 spaces (DS:0xba96) -- clear msg row
+  RETURN
+

@@ -1,0 +1,117 @@
+' ============================================================
+' FUN_01a2_b207 = Lb207 -- display player score table
+' Called from: LIntroText (01a2:13e6), LFinalTally (01a2:ad84), FUN_01a2_b786 (01a2:baa9)
+' Shows a 2-row header, loops numPlayers! slots printing name+score+games+won+lost+avg,
+' then prints the champion line and draws border LINEs.
+' SUB_0e71_82be = TAB() -- positions cursor to column n before each field
+' FUN_0d75_0449 = QB float display pass-through (translated as PRINT directly)
+' Column layout (colBase!=1 for left, 41 for right -- all 16 players use left here):
+'   col colBase!     : slot# (bright white)
+'   col colBase!+13  : hi-score / max score (cyan COLOR 9)
+'   col colBase!+19  : games played (#, white COLOR 7)
+'   col colBase!+24  : won (hist_f4!, magenta COLOR 13)
+'   col colBase!+29  : lost (hist_f5!, light-red COLOR 12)
+'   col colBase!+34  : avg score / mean (yellow COLOR 14)  <-- ends with PRINT (newline)
+' Header strings (DS):
+'   0xb906 = " #  name      max   |---games---| mean   #  name      max   |---games---| mean"
+'   0xb958 = "         score  #   won  lost score               score  #   won  lost score"
+' Champion line strings: 0xb9ba="Current champion player is " / 0xb9da=", with a mean score of"
+' ============================================================
+Lb207:   ' Lb207=Lb207
+  namePos! = 1    ' reset start position in namesBuf$ (Fa506!, DS:0xa506)
+  COLOR 3         ' cyan header text
+  LOCATE 1, 1
+  PRINT " #  name      max   |---games---| mean   #  name      max   |---games---| mean"
+  PRINT "         score  #   won  lost score               score  #   won  lost score"
+  PRINT ""        ' blank separator line (second empty PRINT from ASM)
+
+  bestAvg! = -999999  ' Fa512! -- best avg seen (init very low; DS:0xb9ac=-999999)
+  champSlot! = 0      ' Fa516! -- slot of best-avg player (DS:0xa64c=0)
+  tableLimit! = numPlayers!   ' Fa51a! -- loop limit
+  ' NOTE: loopK! (=F003a!) reused as player-slot loop counter below
+  FOR loopK! = 1 TO tableLimit!
+
+    ' Determine column base: left (1) for slots < 22, right (41) for slots >= 22.
+    ' With numPlayers!=16 all slots use colBase!=1 (right path never triggers).
+    IF loopK! < 22 THEN   ' DS:0xb4c6 = 22
+      colBase! = 1        ' Fa51e! (DS:0xa550=1)
+    ELSE
+      colBase! = 41       ' Fa51e! (DS:0xb3fa=41)
+    END IF
+
+    ' Read history fields for this slot into temps
+    hiScSlot! = hist_hiScore!(INT(loopK!))   ' Fa522! DS:0xa522  (stride 0x198)
+    winsSlot! = hist_f4!(INT(loopK!))        ' Fa526! DS:0xa526  (stride 0x264 -- "won")
+    lossSlot! = hist_f5!(INT(loopK!))        ' Fa52a! DS:0xa52a  (stride 0x330 -- "lost")
+    Fa4de! = hist_games!(INT(loopK!))        ' games  DS:0xa4de  (stride 0x4c8)
+    Fa4e2! = hist_avg!(INT(loopK!))          ' avg    DS:0xa4e2  (stride 0x3fc)
+
+    ' Track champion: if this slot's avg beats the running best, update all three
+    ' at once (ASM splits into two separate compares with name-save in between, but
+    ' the condition is identical both times so collapsing is safe).
+    IF Fa4e2! > bestAvg! THEN   ' first compare: DS:0xa512 vs DS:0xa4e2
+      champSlot! = loopK!       ' Fa516! -- record who is best
+      champName$ = MID$(namesBuf$, INT(namePos!), INT(nameLen!))   ' Sa52e$ DS:0xa52e
+      bestAvg! = Fa4e2!         ' Fa512! -- raise the bar (second compare in ASM)
+    END IF
+
+    ' For right-column slots (>21 players): LOCATE to correct row on the right side.
+    ' col=40 puts cursor just left of colBase!=41; TAB(41) below moves it there.
+    IF loopK! > 21 THEN   ' DS:0xb45e = 21
+      LOCATE INT(loopK! - 18), 40   ' row=loopK!+[0xb9b0=-18]; col=0x28=40
+    END IF
+
+    ' Read this slot's name length from hist_namelen! array (DS:0x9d5e stride 0xcc)
+    nameLen! = hist_namelen!(INT(loopK!))   ' Fa50e! DS:0xa50e
+
+    ' Print slot index (bright white) at column colBase! using TAB positioning
+    COLOR 15
+    PRINT TAB(INT(colBase!)); loopK!;   ' slot number; QB adds leading+trailing space
+    ' Alignment: single-digit slots (1-9) get one extra space so the name column
+    ' lines up regardless of slot-number width. DS:0xaf94=9
+    IF loopK! > 9 THEN
+      PRINT "";   ' no extra space for two-digit slot numbers
+    ELSE
+      PRINT " ";  ' extra space after single-digit slot number
+    END IF
+
+    ' Print player name (bright green) using MID$ into namesBuf$
+    COLOR 10
+    PRINT MID$(namesBuf$, INT(namePos!), INT(nameLen!));
+
+    ' Print numeric score columns with color coding
+    COLOR 9                                      ' light blue -- max/hi score
+    PRINT TAB(INT(13 + colBase!)); hiScSlot!;    ' col 14 left / 54 right (DS:0xa678=13)
+    COLOR 7                                      ' white -- games count
+    PRINT TAB(INT(19 + colBase!)); Fa4de!;       ' col 20 left / 60 right (DS:0xb43a=19)
+    COLOR 13                                     ' light magenta -- won (hist_f4)
+    PRINT TAB(INT(24 + colBase!)); winsSlot!;    ' col 25 left / 65 right (DS:0xb456=24)
+    COLOR 12                                     ' light red -- lost (hist_f5)
+    PRINT TAB(INT(29 + colBase!)); lossSlot!;    ' col 30 left / 70 right (DS:0xb4ca=29)
+    COLOR 14                                     ' yellow -- average/mean score
+    PRINT TAB(INT(34 + colBase!)); Fa4e2!        ' col 35 left / 75 right; NEWLINE ends row
+
+    namePos! = namePos! + nameLen!   ' advance to next name in namesBuf$ (DS:0xa506)
+  NEXT loopK!
+
+  ' After loop: print champion announcement line
+  ' DS:0xb9ba = "Current champion player is "
+  ' Sa52e$ = champName$ (set in loop when best avg was updated)
+  ' DS:0xb9da = ", with a mean score of"
+  LOCATE 26, 10   ' row=0x1a=26, col=0xa=10
+  COLOR 2         ' green
+  PRINT "Current champion player is ";
+  COLOR 12        ' light red -- champion name
+  PRINT champName$;   ' Sa52e$ DS:0xa52e
+  COLOR 2
+  PRINT ", with a mean score of";
+  COLOR 13        ' light magenta -- champion avg
+  PRINT bestAvg!  ' Fa512!; PRINT_float_newline ends with newline
+
+  ' Draw decorative borders around the table
+  LINE (0,0)-(639,460), 14, B        ' yellow outer border (full-screen height)
+  LINE (320,0)-(320,392), 14         ' yellow vertical center divider (2-column layout)
+  LINE (2,392)-(637,420), 11, B      ' cyan border below player list
+  LINE (0,40)-(640,40), 14           ' yellow separator under header (y=40)
+  LINE (2,422)-(637,458), 14, B      ' yellow border around champion area
+  RETURN
