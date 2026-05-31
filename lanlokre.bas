@@ -1,10 +1,13 @@
 DIM compStat!(10,5)     ' compStat!=Fa246!  -- computer status array (10 computers x 5 attrs)
-DIM hist_namelen!(43)   ' DS:0x9d5e  -- player name length per slot (1..43)
-DIM hist_hiScore!(43)   ' DS:0x9e2a  -- player high score per slot
-DIM hist_f4!(43)        ' DS:0x9ef6  -- wins count per slot ("won" column)
-DIM hist_f5!(43)        ' DS:0x9fc2  -- losses count per slot ("lost" column)
-DIM hist_avg!(43)       ' DS:0xa08e  -- running avg score per slot
-DIM hist_games!(43)     ' DS:0xa15a  -- games played per slot
+' Player history table: DIM playTbl!(50,6) OPTION BASE 0; array base DS:0x9c92 (col 0 unused)
+' ASM accesses via [SI+0x9c92] with ADD AX, j*0xcc (j=1..6); stride = 51*4 = 0xcc bytes/col
+'   col 1 (ADD 0x0cc): name length   -- DS:0x9d5e (hist_namelen!)
+'   col 2 (ADD 0x198): high score    -- DS:0x9e2a (hist_hiScore!)
+'   col 3 (ADD 0x264): wins          -- DS:0x9ef6 (hist_f4!)
+'   col 4 (ADD 0x330): losses        -- DS:0x9fc2 (hist_f5!)
+'   col 5 (ADD 0x3fc): running avg   -- DS:0xa08e (hist_avg!)
+'   col 6 (ADD 0x4c8): game count    -- DS:0xa15a (hist_games!)
+DIM playTbl!(50, 6)
 
 ' ---------------------------------------------------------------------------
 ' SYMBOL RENAMING GLOSSARY
@@ -58,18 +61,18 @@ DIM hist_games!(43)     ' DS:0xa15a  -- games played per slot
 '   numPlayers! =Fa4ee!   total player history slots in "players" file (LLoadPlayers)
 '   playersLim! =Fa4f2!   loop limit copy of numPlayers! (LLoadPlayers)
 '   histHiSc!   =Fa4fa!   high score read from "players" file for current slot (LLoadPlayers)
-'   Fa4fe!      =Fa4fe!   history field 4 per slot ("won" count; read in LLoadPlayers)
-'   Fa502!      =Fa502!   history field 5 per slot ("lost" count; read in LLoadPlayers)
+'   Fa4fe!      =Fa4fe!   wins read from "players" file for current slot (LLoadPlayers -> playTbl! col 3)
+'   Fa502!      =Fa502!   losses read from "players" file for current slot (LLoadPlayers -> playTbl! col 4)
 '   namePos!    =Fa506!   current start position in namesBuf$ for MID$ extraction (LSavePlayers/Lb207)
 '   saveLim!    =Fa50a!   loop limit for save loop (= numPlayers!) (LSavePlayers)
-'   nameLen!    =Fa50e!   current player name length from hist_namelen! array (LSavePlayers/Lb207)
+'   nameLen!    =Fa50e!   current player name length from playTbl!(i,1) (LSavePlayers/Lb207)
 '   bestAvg!    =Fa512!   running max average seen in Lb207 loop (init -999999; DS:0xb9ac)
 '   champSlot!  =Fa516!   slot index of player with best average (Lb207)
 '   tableLimit! =Fa51a!   Lb207 loop limit (= numPlayers!)
 '   colBase!    =Fa51e!   Lb207 column base: 1 (left, slots<22) or 41 (right, slots>=22)
-'   hiScSlot!   =Fa522!   high score for current Lb207 display slot (hist_hiScore![loopK!])
-'   winsSlot!   =Fa526!   wins count for current Lb207 slot (hist_f4![loopK!])
-'   lossSlot!   =Fa52a!   losses count for current Lb207 slot (hist_f5![loopK!])
+'   hiScSlot!   =Fa522!   high score for current Lb207 slot (playTbl!(i,2))
+'   winsSlot!   =Fa526!   wins count for current Lb207 slot (playTbl!(i,3))
+'   lossSlot!   =Fa52a!   losses count for current Lb207 slot (playTbl!(i,4))
 '   slotNum!    =Fa4d6!   player slot number entered at login prompt (Lb786)
 '   slotCopy!   =Fa532!   loop limit copy of slotNum! for name extraction (Lb786)
 '   Fa536!      =Fa536!   new-vs-existing flag: 0=existing player selected; non-0=new (Lb786)
@@ -165,7 +168,7 @@ GOSUB LPause263a:GOSUB LPause263a:GOSUB LPause263a
 SCREEN 12
 RANDOMIZE TIMER
 
-GOSUB LLoadPlayers   ' Lae3d -- read "players" file into hist_* arrays
+GOSUB LLoadPlayers   ' Lae3d -- read "players" file into playTbl! array
 LIntroGfx:   ' LIntroGfx=L01a3
 CLS 0
 
@@ -451,8 +454,8 @@ LOCATE 21,17:PRINT "Hard disks reconstructed:  "
 COLOR 13
 LOCATE 18,44:PRINT alFixPJam!
 LOCATE 19,44:PRINT alFixLock!
-LOCATE 20,14:PRINT alFixEras!
-LOCATE 21,14:PRINT alFixFmt!
+LOCATE 20,44:PRINT alFixEras!
+LOCATE 21,44:PRINT alFixFmt!
 
 ' Command window
 LINE (10,355)-(420,470),0,BF
@@ -481,8 +484,8 @@ SOUND 300,4
 SOUND 500,4
 SOUND 300,4
 gameEnd!=TIMER+300
-Fa44e!=0   ' purpose unknown -- used in undecompiled stubs; keep original DS-address name
-Fa452!=0   ' purpose unknown -- used in undecompiled stubs; keep original DS-address name
+Fa44e!=0   ' victory flag: 1=player won (set in LGameEnd/LVictory path)
+Fa452!=0   ' penalty flag: 1=FORMAT-C self-attack or score<60 (set in LGameEnd/LFinalTally)
 score!=0
 
 ' Main game loop?
@@ -1605,12 +1608,13 @@ LFinalTally:   ' Laba9 -- final score tally, history update, game reset
   ' Entered from: LGameEnd (win path), LGameOver (score>=60 loss),
   '               game loop (XREF 01a2:2003, 01a2:2d3e)
   CLS 0
-  ' Score history arrays (indexed by Fa4d6! = player/session slot)
-  ' Array A (DS base 0x9e2a): Fa4da! = high score for this slot
-  ' Array B (DS base 0xa15a): Fa4de! = game count for this slot
-  Fa4da! = hist_hiScore!(INT(slotNum!))   ' DS:0x9e2a + slot*4
-  Fa4de! = hist_games!(INT(slotNum!))    ' DS:0xa15a + slot*4
+  ' Load this slot's history from playTbl! (2D array, col-major, OPTION BASE 0)
+  Fa4da! = playTbl!(INT(slotNum!), 2)   ' col 2: high score
+  Fa4de! = playTbl!(INT(slotNum!), 6)   ' col 6: game count
   IF score! < 60 THEN Fa452! = 1   ' self-format or low-score penalty flag
+  ' update wins/losses history arrays (ASM: ac12-ac47 and ac49-ac7d)
+  playTbl!(INT(slotNum!), 3) = playTbl!(INT(slotNum!), 3) + Fa44e!   ' wins += 1 if victory
+  playTbl!(INT(slotNum!), 4) = playTbl!(INT(slotNum!), 4) + Fa452!   ' losses += 1 if format/low-score
   ' apply score bonuses/penalties
   IF Fa44e! = 1 THEN score! = score! + 2000   ' +2000 victory bonus
   IF Fa452! = 1 THEN score! = score! - 2000   ' -2000 format-C or low-score penalty
@@ -1620,10 +1624,10 @@ LFinalTally:   ' Laba9 -- final score tally, history update, game reset
   Fa4e2! = Fa4e2! * Fa4de!
   Fa4de! = Fa4de! + 1
   Fa4e2! = (Fa4e2! + score!) / Fa4de!
-  ' write updated history back to arrays before saving
-  hist_hiScore!(INT(slotNum!)) = Fa4da!
-  hist_games!(INT(slotNum!)) = Fa4de!
-  hist_avg!(INT(slotNum!)) = Fa4e2!
+  ' write updated history back to playTbl! before saving
+  playTbl!(INT(slotNum!), 2) = Fa4da!   ' col 2: high score
+  playTbl!(INT(slotNum!), 6) = Fa4de!   ' col 6: game count
+  playTbl!(INT(slotNum!), 5) = Fa4e2!   ' col 5: running avg
   GOSUB Lb207          ' display score table (FUN_01a2_b207)
   GOSUB LSavePlayers   ' save player history to "players" file (FUN_01a2_b029)
   GOSUB Lbca2          ' end of game handler (FUN_01a2_bca2, not yet decompiled)
@@ -1643,8 +1647,7 @@ LFinalTally:   ' Laba9 -- final score tally, history update, game reset
 ' FUN_01a2_ae3d = LLoadPlayers -- read player history from "players" file
 ' Called ONCE from ENTRY (01a2:01a0), immediately after RANDOMIZE TIMER,
 '   before the L01a3 game-restart loop begins.
-' Reads numPlayers! player slots; stores history into in-memory arrays
-'   at DS:0x9c92 + per-field offset + INT(loopK!)*4.
+' Reads numPlayers! player slots; stores history into playTbl!(slot, col).
 ' DS:0xb8fa = string descriptor {len=7, ptr=0xb8fe} = "players"
 ' Symmetric to LSavePlayers; handles missing file gracefully (first run).
 ' ============================================================
@@ -1659,17 +1662,17 @@ LLoadPlayers:   ' LLoadPlayers=Lae3d
   FOR loopK! = 1 TO playersLim!
     INPUT #1, compName$   ' player machine name
     namesBuf$ = namesBuf$ + compName$         ' accumulate all names (DS:0xa4f6)
-    hist_namelen!(INT(loopK!)) = CSNG(LEN(compName$))   ' DS:0x9d5e+slot*4
+    playTbl!(INT(loopK!), 1) = CSNG(LEN(compName$))   ' col 1: namelen
     INPUT #1, histHiSc!
-    hist_hiScore!(INT(loopK!)) = histHiSc!   ' DS:0x9e2a+slot*4
+    playTbl!(INT(loopK!), 2) = histHiSc!   ' col 2: high score
     INPUT #1, Fa4de!
-    hist_games!(INT(loopK!)) = Fa4de!        ' DS:0xa15a+slot*4
+    playTbl!(INT(loopK!), 6) = Fa4de!      ' col 6: game count
     INPUT #1, Fa4fe!
-    hist_f4!(INT(loopK!)) = Fa4fe!           ' DS:0x9ef6+slot*4
+    playTbl!(INT(loopK!), 3) = Fa4fe!      ' col 3: wins
     INPUT #1, Fa502!
-    hist_f5!(INT(loopK!)) = Fa502!           ' DS:0x9fc2+slot*4
+    playTbl!(INT(loopK!), 4) = Fa502!      ' col 4: losses
     INPUT #1, Fa4e2!
-    hist_avg!(INT(loopK!)) = Fa4e2!          ' DS:0xa08e+slot*4
+    playTbl!(INT(loopK!), 5) = Fa4e2!      ' col 5: running avg
   NEXT loopK!
   CLOSE #1
   GOTO LLoadPlayersDone
@@ -1682,12 +1685,10 @@ LLoadPlayersDone:
 ' ============================================================
 ' FUN_01a2_b029 = LSavePlayers -- write player history to "players" file
 ' Called from LFinalTally (01a2:ad87) after each game ends.
-' Symmetric to LLoadPlayers: reads in-memory hist_* arrays -> PRINT #1 to file.
+' Symmetric to LLoadPlayers: reads in-memory playTbl! -> PRINT #1 to file.
 ' DS:0xb8fa = "players"; OPEN mode arg=2 (OUTPUT), vs mode=1 (INPUT) in LLoadPlayers.
 ' SUB_0e71_764b(1) + SUB_0e71_7864 = PRINT #1 channel setup before each value.
 ' SUB_0e71_7fee = MID$() -- extract substring from namesBuf$
-' Note: hist_namelen!, hist_hiScore!, hist_games!, hist_f4!, hist_f5!, hist_avg!
-'   are unnamed QB arrays in DS; DIM statements are in ENTRY (raw ASM, not yet decompiled)
 ' ============================================================
 LSavePlayers:   ' LSavePlayers=Lb029
   ' OPEN "players" FOR OUTPUT AS #1
@@ -1698,17 +1699,17 @@ LSavePlayers:   ' LSavePlayers=Lb029
   saveLim! = numPlayers!  ' loop limit (DS:0xa50a = copy of numPlayers!)
   ' NOTE: loopK! (=F003a!) reused as player-slot write index below
   FOR loopK! = 1 TO saveLim!
-    ' get name length from hist_namelen! array: DS:0x9d5e + INT(loopK!)*4
-    nameLen! = hist_namelen!(INT(loopK!))   ' store in DS:0xa50e
+    ' get name length from playTbl! col 1
+    nameLen! = playTbl!(INT(loopK!), 1)   ' col 1 (namelen) -> DS:0xa50e
     ' extract this slot's name from the accumulated namesBuf$ string
     compName$ = MID$(namesBuf$, INT(namePos!), INT(nameLen!))
     namePos! = namePos! + nameLen!           ' advance to next name
     PRINT #1, compName$                      ' write player name
-    PRINT #1, hist_hiScore!(INT(loopK!))     ' high score  DS:0x9e2a+slot*4
-    PRINT #1, hist_games!(INT(loopK!))       ' game count  DS:0xa15a+slot*4
-    PRINT #1, hist_f4!(INT(loopK!))          ' field 4     DS:0x9ef6+slot*4
-    PRINT #1, hist_f5!(INT(loopK!))          ' field 5     DS:0x9fc2+slot*4
-    PRINT #1, hist_avg!(INT(loopK!))         ' running avg DS:0xa08e+slot*4
+    PRINT #1, playTbl!(INT(loopK!), 2)     ' col 2: high score
+    PRINT #1, playTbl!(INT(loopK!), 6)     ' col 6: game count
+    PRINT #1, playTbl!(INT(loopK!), 3)     ' col 3: wins
+    PRINT #1, playTbl!(INT(loopK!), 4)     ' col 4: losses
+    PRINT #1, playTbl!(INT(loopK!), 5)     ' col 5: running avg
   NEXT loopK!
   ' CLOSE #1  (SUB_0e71_4452 with args 1, 1)
   CLOSE #1
@@ -1724,8 +1725,8 @@ LSavePlayers:   ' LSavePlayers=Lb029
 '   col colBase!     : slot# (bright white)
 '   col colBase!+13  : hi-score / max score (cyan COLOR 9)
 '   col colBase!+19  : games played (#, white COLOR 7)
-'   col colBase!+24  : won (hist_f4!, magenta COLOR 13)
-'   col colBase!+29  : lost (hist_f5!, light-red COLOR 12)
+'   col colBase!+24  : won (playTbl! col 3, magenta COLOR 13)
+'   col colBase!+29  : lost (playTbl! col 4, light-red COLOR 12)
 '   col colBase!+34  : avg score / mean (yellow COLOR 14)  <-- ends with PRINT (newline)
 ' Header strings (DS):
 '   0xb906 = " #  name      max   |---games---| mean   #  name      max   |---games---| mean"
@@ -1754,12 +1755,16 @@ Lb207:   ' Lb207=Lb207
       colBase! = 41       ' Fa51e! (DS:0xb3fa=41)
     END IF
 
-    ' Read history fields for this slot into temps
-    hiScSlot! = hist_hiScore!(INT(loopK!))   ' Fa522! DS:0xa522  (stride 0x198)
-    winsSlot! = hist_f4!(INT(loopK!))        ' Fa526! DS:0xa526  (stride 0x264 -- "won")
-    lossSlot! = hist_f5!(INT(loopK!))        ' Fa52a! DS:0xa52a  (stride 0x330 -- "lost")
-    Fa4de! = hist_games!(INT(loopK!))        ' games  DS:0xa4de  (stride 0x4c8)
-    Fa4e2! = hist_avg!(INT(loopK!))          ' avg    DS:0xa4e2  (stride 0x3fc)
+    ' Read history fields for this slot into temps (from playTbl! cols 1-6)
+    hiScSlot! = playTbl!(INT(loopK!), 2)   ' Fa522! col 2 (ADD 0x198 in ASM)
+    winsSlot! = playTbl!(INT(loopK!), 3)   ' Fa526! col 3 (ADD 0x264)
+    lossSlot! = playTbl!(INT(loopK!), 4)   ' Fa52a! col 4 (ADD 0x330)
+    Fa4de! = playTbl!(INT(loopK!), 6)      ' games  col 6 (ADD 0x4c8; read before avg in ASM)
+    Fa4e2! = playTbl!(INT(loopK!), 5)      ' avg    col 5 (ADD 0x3fc)
+
+    ' Read name length from playTbl! col 1 (ADD 0x0cc in ASM, address b3bb)
+    ' MUST be before champion check -- ASM reads nameLen! at b3ae, uses it at b47a
+    nameLen! = playTbl!(INT(loopK!), 1)   ' Fa50e! col 1
 
     ' Track champion: if this slot's avg beats the running best, update all three
     ' at once (ASM splits into two separate compares with name-save in between, but
@@ -1775,9 +1780,6 @@ Lb207:   ' Lb207=Lb207
     IF loopK! > 21 THEN   ' DS:0xb45e = 21
       LOCATE INT(loopK! - 18), 40   ' row=loopK!+[0xb9b0=-18]; col=0x28=40
     END IF
-
-    ' Read this slot's name length from hist_namelen! array (DS:0x9d5e stride 0xcc)
-    nameLen! = hist_namelen!(INT(loopK!))   ' Fa50e! DS:0xa50e
 
     ' Print slot index (bright white) at column colBase! using TAB positioning
     COLOR 15
@@ -1799,9 +1801,9 @@ Lb207:   ' Lb207=Lb207
     PRINT TAB(INT(13 + colBase!)); hiScSlot!;    ' col 14 left / 54 right (DS:0xa678=13)
     COLOR 7                                      ' white -- games count
     PRINT TAB(INT(19 + colBase!)); Fa4de!;       ' col 20 left / 60 right (DS:0xb43a=19)
-    COLOR 13                                     ' light magenta -- won (hist_f4)
+    COLOR 13                                     ' light magenta -- won (playTbl! col 3)
     PRINT TAB(INT(24 + colBase!)); winsSlot!;    ' col 25 left / 65 right (DS:0xb456=24)
-    COLOR 12                                     ' light red -- lost (hist_f5)
+    COLOR 12                                     ' light red -- lost (playTbl! col 4)
     PRINT TAB(INT(29 + colBase!)); lossSlot!;    ' col 30 left / 70 right (DS:0xb4ca=29)
     COLOR 14                                     ' yellow -- average/mean score
     PRINT TAB(INT(34 + colBase!)); Fa4e2!        ' col 35 left / 75 right; NEWLINE ends row
@@ -1842,8 +1844,8 @@ Lb207:   ' Lb207=Lb207
 ' INPUT for player#  uses SUB_0e71_7e1a + 77fc (float input) then FUN_0d75_0449
 ' INPUT for name     uses SUB_0e71_7e20 + 77fc (string input to Sa436$/playerName$)
 ' SUB_0e71_7fca = LEFT$(str, n) -- truncate to 9 chars max
-' SUB_0e71_7cb1 = STRING_CONCAT; FUN_0d75_03c4 = CSNG (int-to-float for hist_namelen)
-' On existing player exit: Fa4e2!=hist_avg![slotNum!], Fa536!=0, RETURN
+' SUB_0e71_7cb1 = STRING_CONCAT; FUN_0d75_03c4 = CSNG (int-to-float for playTbl! col 1)
+' On existing player exit: Fa4e2!=playTbl!(slotNum!,5), Fa536!=0, RETURN
 ' On new player: GOTO Lb207 (tail-call; Lb207 RETURN goes to our caller)
 ' ============================================================
 Lb786:   ' Lb786=Lb786
@@ -1873,14 +1875,14 @@ Lb786Exist:   ' LAB_01a2_b847
   slotCopy! = slotNum!  ' Fa532! DS:0xa532 -- loop limit for name extraction
   ' NOTE: loopK! (=F003a!) reused as name-scan counter below
   FOR loopK! = 1 TO slotCopy!
-    nameLen! = hist_namelen!(INT(loopK!))   ' Fa50e! DS:0xa50e (stride 0xcc from 0x9c92)
+    nameLen! = playTbl!(INT(loopK!), 1)   ' Fa50e! DS:0xa50e (stride 0xcc from 0x9c92)
     playerName$ = MID$(namesBuf$, INT(namePos!), INT(nameLen!))   ' Sa436$ DS:0xa436
     namePos! = namePos! + nameLen!   ' advance past this name
   NEXT loopK!
   ' playerName$ now holds the name for the chosen slot (last iteration of loop)
 
   ' Load this player's historical average into Fa4e2! for LFinalTally scoring
-  Fa4e2! = hist_avg!(INT(slotNum!))   ' DS:0xa08e + slot*4 (hist_avg stride 0x3fc)
+  Fa4e2! = playTbl!(INT(slotNum!), 5)   ' col 5: running avg
   Fa536! = 0   ' DS:0xa536 -- 0 = existing player selected (cleared on normal exit)
   RETURN
 
@@ -1923,7 +1925,7 @@ Lb786New:   ' LAB_01a2_b907
 
   ' Append name to namesBuf$ and record its length in the history array
   namesBuf$ = namesBuf$ + playerName$          ' STRING_CONCAT -> Sa4f6$ DS:0xa4f6
-  hist_namelen!(INT(slotNum!)) = CSNG(LEN(playerName$))   ' FUN_0d75_03c4 = CSNG; DS:0x9d5e+slot*4
+  playTbl!(INT(slotNum!), 1) = CSNG(LEN(playerName$))   ' col 1: namelen (FUN_0d75_03c4 = CSNG)
 
   ' Redisplay the score table then return to our caller via Lb207's RETURN
   ' (JMP b207 = tail-call: Lb207 executes and its RETURN pops back to our caller)

@@ -13,6 +13,23 @@ Update this file at the end of each work session.
 
 ## Session Log
 
+### 2026-05-30 -- Session 21: Expert review -- player history 2D array refactor
+- Expert noted 6 separate 1D arrays were likely a single 2D array in original source
+- Verified from ASM: all field accesses use `[SI + 0x9c92]` with ADD AX, j*0xcc offsets
+- 0xcc = 51 * 4 = stride for DIM playTbl!(50, 6) column-major, OPTION BASE 0
+- All 6 DS base addresses differ by exact multiples of 0xcc (confirmed b3bb/b2c3/b2e2/b301/b33f/b320)
+- Replaced 6 DIM hist_*!(43) statements with single `DIM playTbl!(50, 6)`, col 0 unused
+- Updated all 22 array accesses; cleaned all comments in Lb207/LFinalTally/LLoadPlayers/LSavePlayers/Lb786
+- QB64-PE -z exit 0 confirmed
+
+### 2026-05-30 -- Session 20: Full code review -- 3 logic bugs fixed
+- Reviewed all functions against lanlok.asm ground truth; all sections verified
+- Bug 1: Al scoreboard LOCATE 20,14/21,14 -> LOCATE 20,44/21,44 (all 4 rows use col 0x2c=44, ASM confirmed)
+- Bug 2: Lb207 nameLen! read moved before champion check (ASM b3ae before b47a -- ordering was inverted)
+- Bug 3: LFinalTally missing wins/losses updates: added hist_f4!/hist_f5! increments (ASM ac12-ac7d)
+- Also fixed stale "purpose unknown" comments on Fa44e!/Fa452! (victory/penalty flags, confirmed session 17)
+- QB64-PE -z exit 0 after all fixes
+
 ### 2026-05-30 -- Session 19: QB64-PE compilation fixes + successful compile
 - **MILESTONE: lanlokre.bas compiles cleanly -- lanlokre.exe produced (4,094,976 bytes)**
 - Fixed "Label 'Lae3d' not defined": inserted complete LLoadPlayers function with array stores + error handling

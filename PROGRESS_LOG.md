@@ -4,6 +4,119 @@ This file records decompilation sessions in reverse-chronological order.
 
 ---
 
+## Session 21 -- 2026-05-30 (Expert review: player history 2D array refactor)
+
+### Observation and verification
+
+An expert reviewer noted that the 6 separate 1D arrays for player history
+(hist_namelen!, hist_hiScore!, hist_f4!, hist_f5!, hist_avg!, hist_games!)
+were likely a single 2D array in the original QuickBASIC source.
+
+Verified against lanlok.asm: every array field access uses the ASM pattern
+  `SHL AX,1 / SHL AX,1 / ADD AX, j*0xcc / MOV SI,AX / FLD [SI + 0x9c92]`
+with a SINGLE base pointer (0x9c92) and column offsets that are exact multiples
+of 0xcc = 204 = 51*4 bytes. This is the definitive signature of one 2D array.
+
+DS base addresses of each "sub-array" confirmed:
+  0x9d5e - 0x9c92 = 0x0cc = 1 * 0xcc  (col 1: namelen,  ADD 0x0cc at b3bb)
+  0x9e2a - 0x9c92 = 0x198 = 2 * 0xcc  (col 2: hiScore,  ADD 0x198 at b2c3)
+  0x9ef6 - 0x9c92 = 0x264 = 3 * 0xcc  (col 3: wins,     ADD 0x264 at b2e2)
+  0x9fc2 - 0x9c92 = 0x330 = 4 * 0xcc  (col 4: losses,   ADD 0x330 at b301)
+  0xa08e - 0x9c92 = 0x3fc = 5 * 0xcc  (col 5: avg,      ADD 0x3fc at b33f)
+  0xa15a - 0x9c92 = 0x4c8 = 6 * 0xcc  (col 6: games,    ADD 0x4c8 at b320)
+
+### DIM declaration analysis
+
+0xcc = 51 * 4 = (50+1) * sizeof(float), matching DIM playTbl!(50, 6) OPTION BASE 0.
+Column 0 (j=0) is never accessed; the programmer used 1-based column indices (1..6)
+against OPTION BASE 0 storage. Array base at DS:0x9c92 is one stride before the
+first real data at DS:0x9d5e. Total block: DS:0x9c92..DS:0xa222 = 0x590 bytes
+= 51 rows * 7 cols * 4 bytes = 1428 bytes (including unused col 0).
+
+### Changes made
+
+- Replaced 6 DIM statements with: `DIM playTbl!(50, 6)`
+- Added comment block above DIM explaining column layout and ASM ADD offsets
+- All 22 field accesses updated:
+  - hist_namelen!(INT(x)) -> playTbl!(INT(x), 1)
+  - hist_hiScore!(INT(x)) -> playTbl!(INT(x), 2)
+  - hist_f4!(INT(x))      -> playTbl!(INT(x), 3)
+  - hist_f5!(INT(x))      -> playTbl!(INT(x), 4)
+  - hist_avg!(INT(x))     -> playTbl!(INT(x), 5)
+  - hist_games!(INT(x))   -> playTbl!(INT(x), 6)
+- Glossary updated: nameLen!, hiScSlot!, winsSlot!, lossSlot! descriptions corrected
+- Inline comments in LLoadPlayers, LSavePlayers, Lb207, LFinalTally, Lb786 cleaned up
+- QB64-PE -z exit 0 confirmed after all changes
+
+---
+
+## Session 20 -- 2026-05-30 (Full code review: 3 logic bugs fixed)
+
+### Overview
+
+Full cross-reference review of lanlokre.bas against lanlok.asm, end to end.
+No decompilation work; all changes are correctness fixes found by comparing BASIC output
+against ground-truth ASM. Syntax remains clean (QB64-PE -z exit 0) after all fixes.
+
+### Bugs found and fixed
+
+#### Bug 1 -- Al scoreboard initial display: wrong column for rows 20-21 (CONFIRMED + FIXED)
+- **File:** lanlokre.bas lines 454-455 (ENTRY / game loop, initial Al tally display)
+- **Problem:** `LOCATE 20,14` and `LOCATE 21,14` used column 14 for alFixEras! and alFixFmt!
+  rows. ASM at 0x1bc2 and 0x1be8 both push `MOV AX, 0x2c` (=44) for the column argument.
+  All four Al-tally rows (18-21) should use column 44, not 14 for rows 20-21.
+- **Fix:** Changed to `LOCATE 20,44` and `LOCATE 21,44`.
+- **Effect:** alFixEras! and alFixFmt! were displayed 30 columns to the left, clobbering the
+  "Hard disks erased:" / "Hard disks reconstructed:" label text. Now aligned correctly.
+
+#### Bug 2 -- Lb207 champion check used previous iteration's nameLen! (CONFIRMED + FIXED)
+- **File:** lanlokre.bas Lb207 loop (~line 1780)
+- **Problem:** `nameLen! = hist_namelen!(INT(loopK!))` was read AFTER the champion-name
+  capture block (`champName$ = MID$(namesBuf$, ..., INT(nameLen!))`). So the first time a
+  new champion was found, nameLen! still held the value from the previous slot, causing the
+  champion name to be cut at the wrong length (or read garbage on the very first champion).
+- **ASM confirmation:** Address b3ae loads nameLen! from hist_namelen! (ADD AX,0xcc pattern);
+  the champion-name capture is at b47a, well after b3ae -- so nameLen! MUST be current.
+- **Fix:** Moved `nameLen! = hist_namelen!(INT(loopK!))` to before the `IF Fa4e2! > bestAvg!`
+  block. Added comment noting the ordering constraint.
+
+#### Bug 3 -- LFinalTally: wins and losses history arrays never updated (CONFIRMED + FIXED)
+- **File:** lanlokre.bas LFinalTally (~line 1613)
+- **Problem:** hist_f4! (wins) and hist_f5! (losses) per-slot array elements were never
+  incremented. The score table in Lb207 shows won/lost columns, but they would never change
+  from the values loaded at startup.
+- **ASM confirmation:** Addresses ac12-ac47 perform `hist_f4!(slotNum!) += Fa44e!` (wins += 1
+  if victory flag is set); addresses ac49-ac7d perform `hist_f5!(slotNum!) += Fa452!` (losses
+  += 1 if penalty flag is set). Both blocks are entirely absent from the BASIC.
+- **Fix:** Inserted two lines immediately after the penalty-flag check (before score
+  bonus/penalty application), following the exact ASM ordering:
+  ```
+  hist_f4!(INT(slotNum!)) = hist_f4!(INT(slotNum!)) + Fa44e!   ' wins
+  hist_f5!(INT(slotNum!)) = hist_f5!(INT(slotNum!)) + Fa452!   ' losses
+  ```
+
+#### Cosmetic -- Stale "purpose unknown" comments on Fa44e!/Fa452! (FIXED)
+- **File:** lanlokre.bas lines 484-485 (ENTRY initialization)
+- Purpose of both flags was confirmed in Session 17/18 but the initialization comments still
+  said "purpose unknown". Updated to describe their actual role.
+
+### Sections verified as correct (no changes needed)
+
+- ENTRY startup: DIM statements, intro text, SCREEN 12, RANDOMIZE TIMER, GOSUB LLoadPlayers
+- LGameLoop structure: command accumulation, target selection, attack dispatch
+- LPause263a/LPause263b fall-through: ASM confirmed no RET between L3c57 and L3c90 -- GOSUB
+  LPause263a correctly yields 0.526 s (two _DELAY 0.263 calls before the shared RETURN)
+- LGameEnd victory branch: GOSUB LVictory before GOTO LFinalTally -- correct per ASM a595-a5a5
+- LVictory, LLossScreen, LGameOver, LTooFewPoints, LYouLose: no issues found
+- LAlAnim, LSelfPJam/Lock/Erase, LAtkFmt, LAlFix, L3a10: no issues found
+- LLoadPlayers, LSavePlayers: file I/O correct; ON ERROR handler for missing file intact
+- LRepairUI, Lbca2, Lb786: no issues found
+
+### Compilation result
+- `qb64pe.exe -z lanlokre.bas` -- exit 0 (syntax clean, post all fixes)
+
+---
+
 ## Session 19 -- 2026-05-30 (QB64-PE compilation fixes: label resolution + LLoadPlayers)
 
 **MILESTONE: lanlokre.bas compiles cleanly to lanlokre.exe (QB64-PE, exit 0).**
