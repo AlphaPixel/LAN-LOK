@@ -10,7 +10,15 @@ Repo contents:
 
 * LANLOK.ASM : Disassembly from Ghidra. Some known QuickBasic runtime function calls have been named with the corresponding BASIC instruction.
 
-* LANLOKRE.BAS : Working file for the QuickBasic decompilation. Variable names and function/subroutine labels are referred to by DS/CS address respectively, to help keep the decompilation consistent; these will be globally replaced with readable names once the first pass is done.
+* LANLOKRE.BAS : Completed QuickBASIC decompilation (1,975 lines). All raw ASM replaced with
+  BASIC. Compiles cleanly under QB64-PE. Variables and labels use semantic names (e.g. `drawX!`,
+  `score!`, `LAlAnim`) established during a global renaming pass (session 12, 2026-05-28).
+  Original DS/CS address names are preserved in inline comments for cross-reference with LANLOK.ASM.
+  A 35+ symbol glossary is at the top of the file (lines ~9-143).
 
-More notes coming soon ...
+* LANLOK.ASM : Ghidra disassembly of the code segment, with QuickBASIC runtime calls named.
+  Used as ground truth throughout decompilation; do not modify.
+
+Decompilation completed 2026-05-30 over 21 AI-assisted sessions (Claude Sonnet 4.6).
+See PROGRESS_LOG.md for detailed session notes.
 

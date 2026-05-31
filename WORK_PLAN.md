@@ -8,31 +8,40 @@ using a Ghidra disassembly and memory dumps.
 
 ---
 
-## Current State (as of 2026-05-27)
+## Current State (as of 2026-05-30) — COMPLETE
 
 | Item | Status |
 |------|--------|
-| Total lines in `lanlokre.bas` | 16,481 |
-| Raw ASM lines still in file | 14,106 (85.6%) |
-| Decompiled BASIC lines | 2,375 (14.4%) |
-| Estimated functional completion | ~28% (BASIC is denser than ASM) |
+| Total lines in `lanlokre.bas` | 1,975 |
+| Raw ASM lines remaining | 0 (0%) |
+| Decompiled BASIC lines | 1,975 (100%) |
 | Named ASM functions (Ghidra) | 43 + ENTRY = 44 code regions |
-| Completed subroutines | L2e2d, L3522, L376f, L3a10 |
+| All named functions | **Done** |
+| QB64-PE compile | **Clean** (lanlokre.exe produced) |
 
-### What Is Done
-- **Main game body (ENTRY)** — partially decompiled; intro, rules, main game loop, command
-  dispatch (`select`, `print`, `send mail`, `del *.*`, `format c:`) are largely BASIC.
-- Several small subroutines: `L0b97`, `L0bcb`, `L0d53`, `L2d76`, `L2dbb` (timer display),
-  part of `L2e2d` (computer icon draw), `L3c90` (delay loop)
-- **Session 1:** `L2e2d` — computer icon drawing (18 LINE + 2 PSET)
-- **Session 2:** `L3522` — animate computer screen (3 LINE + PSET + scan-line WHILE loop)
-- **Session 3:** `L376f` — Al fixes computer (SOUND, tally counters, PRINT, erase+redraw icon)
-- **Session 4:** `L3a10` — score recalculator (FOR loop computers 1-9, Hobbs special case, clamp, display)
-- Variable naming convention established (DS address → `Fa_xxxx!` / `Sa_xxxx$`)
+### What Is Done — Everything
+
+All 44 named code regions fully decompiled. Key milestones:
+- **Sessions 1-4 (2026-05-27):** L2e2d, L3522, L376f, L3a10, delay loops
+- **Session 8 (2026-05-27):** L3d3b (type-1 attack, LAN LOCKED)
+- **Session 9 (2026-05-27):** L42d5 (PRINTER JAM attack)
+- **Session 10 (2026-05-27):** L5018 (ERASED attack)
+- **Session 12 (2026-05-28):** Full semantic symbol renaming (35+ variables, 32 labels)
+- **Session 13 (2026-05-28):** L56c4/LCircXhair (FORMAT C: attack + circle animator)
+- **Session 14 (2026-05-28):** L637d/LAlAnim (Al figure draw + blink animation; 5,619 ASM lines)
+- **Sessions 15-16 (2026-05-28):** LSelfPJam/Lock/Erase, LVictory
+- **Session 17 (2026-05-29):** LLossScreen, LGameEnd, LFinalTally (loss/game-over path)
+- **Session 18 (2026-05-30):** Lb207, Lb786, LRepairUI, Lbca2 (player UI + end-of-game)
+- **Session 19 (2026-05-30):** LLoadPlayers (file I/O); full QB64-PE compile achieved
+- **Session 20 (2026-05-30):** Code review — 3 logic bugs fixed (Al column, champion name, wins/losses)
+- **Session 21 (2026-05-30):** Expert review — 6 hist_* arrays unified into DIM playTbl!(50,6)
 
 ### What Remains
-Every raw ASM block still in `lanlokre.bas` — identifiable by lines matching
-`^\s+01a2:[0-9a-f]{4}`. These must be replaced with equivalent BASIC statements.
+Nothing — all raw ASM blocks converted to BASIC. No lines matching `^\s+01a2:[0-9a-f]{4}`.
+
+Next steps (outside original decompilation scope):
+- Behavioral testing against original DOSBox run
+- String/constant cross-verification via LANLOKDS.BIN
 
 ---
 
@@ -41,69 +50,70 @@ Every raw ASM block still in `lanlokre.bas` — identifiable by lines matching
 | File | Purpose |
 |------|---------|
 | `lanlok.asm` | Ghidra disassembly — **ground truth**. 23,451 lines, 1.3 MB. |
-| `lanlokre.bas` | Working decompilation file. Hybrid: BASIC + raw ASM stubs. |
+| `lanlokre.bas` | **Decompiled output** — 1,975 lines of QB64-compatible BASIC. Compiles clean. |
 | `LANLOKDS.BIN` | Data segment dump (DS = 1997:0000). For resolving string/float constants. |
 | `MEMDUMP.BIN` | Full program code area, FP-emulation stubs converted to x87. Fed to Ghidra. |
 | `MEMDUMP_orig.BIN` | Original unmodified memory dump. |
 | `archival/Lanlok.zip` | Original DOS EXE for DOSBox testing. |
-| `tools/progress.ps1` | Script to measure decompilation progress. |
+| `Known_Instruction_Formats.md` | QB runtime calling conventions (LOCATE, COLOR, file I/O, etc.) |
+| `tools/progress.ps1` | Script to measure decompilation progress (run with `-Update` to write PROGRESS.md). |
 | `tools/extract_fn.ps1` | Script to extract a named function from `lanlok.asm`. |
+| `PROGRESS.md` | Auto-generated progress snapshot (run `.\tools\progress.ps1 -Update` to refresh). |
+| `PROGRESS_LOG.md` | Session-by-session decompilation log (21 sessions, 2026-05-27 to 2026-05-30). |
 | `WORK_PLAN.md` | This document. |
-| `CLAUDE.md` | Context for AI-assisted decompilation sessions. |
 
 ---
 
 ## ASM Function Inventory
 
-All 43 named functions plus ENTRY, in address order.
-Status: ✅ Done / 🔄 Partial / ⬜ Todo
+All 43 named functions plus ENTRY, in address order. All ✅ Done as of 2026-05-30.
+Ghidra stubs (341d-3471, 422d, 4246, 50b2, 5124) are continuations of adjacent functions;
+Ghidra split them at QB runtime callback points.
 
 | ASM Name | BASIC Label | Description | Status |
 |----------|-------------|-------------|--------|
-| ENTRY | (main body) | Timer calibrate, intros, game loop, commands | 🔄 Partial |
-| FUN_01a2_0b97 | L0b97 | Random sound effect | ✅ Done |
-| FUN_01a2_0bcb | L0bcb | Draw arrows | ✅ Done |
-| FUN_01a2_0d53 | L0d53 | Clear arrows | ✅ Done |
-| FUN_01a2_0d85 | L0d85 | Continue intro / rules | 🔄 Partial |
-| FUN_01a2_145c | L145c | (unknown — score/status area?) | ⬜ Todo |
-| FUN_01a2_19e9 | L19e9 | (unknown) | ⬜ Todo |
-| FUN_01a2_19fa | L19fa | (unknown — Al repair loop?) | ⬜ Todo |
-| FUN_01a2_2d76 | L2d76 | Reset selection | ✅ Done |
-| FUN_01a2_2dbb | L2dbb | Update displayed timer | ✅ Done |
-| FUN_01a2_2e2d + 341d + 3460 + 3469 + 3471 | L2e2d | Display computer icon (18 LINEs + 2 PSETs) | ✅ Done |
-| FUN_01a2_341d | L341d | (unknown) | ⬜ Todo |
-| FUN_01a2_3460 | L3460 | (unknown) | ⬜ Todo |
-| FUN_01a2_3469 | L3469 | (unknown) | ⬜ Todo |
-| FUN_01a2_3471 | L3471 | (unknown) | ⬜ Todo |
-| FUN_01a2_3522 | L3522 | Animate computer screen: 3 LINEs + flickering PSET + scan-line WHILE loop | ✅ Done |
-| FUN_01a2_376f | L376f | Al fixes computer: SOUND alert, tally damage counters, PRINT score, erase+redraw icon | ✅ Done |
-| FUN_01a2_3a10 | L3a10 | Score recalculator: loop computers 1-9 (damage pts 50/100/200/60), Hobbs special (75/130/400/85), clamp ≥0, LOCATE+PRINT score | ✅ Done |
-| FUN_01a2_3c57 | L3c57 | Delay ≈ 0.263 s → `_DELAY 0.263` (was F0046!=26405 iters) | ✅ Done |
-| FUN_01a2_3c90 | L3c90 | Delay ≈ 0.263 s → `_DELAY 0.263` (same; shares RET) | ✅ Done |
-| FUN_01a2_3cc9 | L3cc9 | Delay ≈ 0.066 s → `_DELAY 0.066` (was F004a!=6601 iters; no RET, falls through) | ✅ Done |
-| FUN_01a2_3d02 | L3d02 | Delay ≈ 0.066 s → `_DELAY 0.066` (same; owns shared RET) | ✅ Done |
-| FUN_01a2_3d3b | L3d3b | Type-1 attack: repair-time, "LAN LOCKED" notify, flicker+shrink anim, icon marker | ✅ Done |
-| FUN_01a2_422d | L422d | Ghidra stub — part of L3d3b | ✅ Done |
-| FUN_01a2_4246 | L4246 | Ghidra stub — part of L3d3b (RET at 42d4) | ✅ Done |
-| FUN_01a2_42d5 | L42d5 | Printer JAM attack: icon draw, 5-frame paper feed anim, alarm cascade, 30-iter chaos | ✅ Done |
-| FUN_01a2_5018 | L5018 | ERASED attack: repair time, flicker anim (L3c90×4), SOUND 100,12, red X (4+3 LINEs + 3 PAINTs) | ✅ Done |
-| FUN_01a2_50b2 | L50b2 | Ghidra stub — part of L5018 | ✅ Done |
-| FUN_01a2_5124 | L5124 | Ghidra stub — part of L5018 (RET at 56c3) | ✅ Done |
-| FUN_01a2_56c4 | L56c4 | (unknown — format c: action?) | ⬜ Todo |
-| FUN_01a2_61cb | L61cb | (unknown) | ⬜ Todo |
-| FUN_01a2_637d | L637d | Al animation draw | ⬜ Todo |
-| FUN_01a2_902f | L902f | Error: no target selected (print) | ⬜ Todo |
-| FUN_01a2_90ad | L90ad | Error: no target selected (mail) | ⬜ Todo |
-| FUN_01a2_90f7 | L90f7 | Error: no target selected (del) | ⬜ Todo |
-| FUN_01a2_9170 | L9170 | Win condition check / victory sequence | ⬜ Todo |
-| FUN_01a2_9ae7 | L9ae7 | (unknown — win/lose?) | ⬜ Todo |
-| FUN_01a2_9c28 | L9c28 | Error: no target selected (format) / loss path | ⬜ Todo |
-| FUN_01a2_ae3d | Lae3d | (unknown — Al init?) | ⬜ Todo |
-| FUN_01a2_b029 | Lb029 | (unknown) | ⬜ Todo |
-| FUN_01a2_b207 | Lb207 | (unknown — game state init?) | ⬜ Todo |
-| FUN_01a2_b786 | Lb786 | (unknown — screen setup?) | ⬜ Todo |
-| FUN_01a2_bab9 | Lbab9 | Win/lose message screen | ⬜ Todo |
-| FUN_01a2_bca2 | Lbca2 | Prompt for start/exit | ⬜ Todo |
+| ENTRY | (main body) | Intro text, SCREEN 12, game loop, command dispatch | ✅ Done |
+| FUN_01a2_0b97 | LRndSound | Random intro sound effect | ✅ Done |
+| FUN_01a2_0bcb | LDrawArrow | Draw selection arrows on status panel | ✅ Done |
+| FUN_01a2_0d53 | LClearArrow | Erase selection arrows | ✅ Done |
+| FUN_01a2_0d85 | LIntroText | Continue intro / rules display | ✅ Done |
+| FUN_01a2_145c | LDrawUI | Draw game-board UI (status panel, computers 1-10) | ✅ Done |
+| FUN_01a2_19e9 | LAnimDmg | Animate damaged computer screen | ✅ Done |
+| FUN_01a2_19fa | LGameLoop | Main game loop (Al repair, timer, command processing) | ✅ Done |
+| FUN_01a2_2d76 | LClearSel | Reset/clear target selection display | ✅ Done |
+| FUN_01a2_2dbb | LUpdateTimer | Update displayed countdown timer | ✅ Done |
+| FUN_01a2_2e2d + 341d + 3460 + 3469 + 3471 | LDrawIcon | Display computer icon (18 LINEs + 2 PSETs) | ✅ Done |
+| FUN_01a2_3522 | LAnimScr | Animate computer screen: 3 LINEs + flickering PSET + scan-line loop | ✅ Done |
+| FUN_01a2_376f | LAlFix | Al fixes a computer: SOUND alert, tally damage, PRINT score, erase+redraw | ✅ Done |
+| FUN_01a2_3a10 | LCalcScore | Score recalculator: loop computers 1-9, Hobbs special, clamp >= 0, display | ✅ Done |
+| FUN_01a2_3c57 | LPause263a | Delay 0.263 s (fall-through to LPause263b; GOSUB = 0.526 s total) | ✅ Done |
+| FUN_01a2_3c90 | LPause263b | Delay 0.263 s (owns shared RETURN) | ✅ Done |
+| FUN_01a2_3cc9 | LPause066a | Delay 0.066 s (fall-through to LPause066b; no RET) | ✅ Done |
+| FUN_01a2_3d02 | LPause066b | Delay 0.066 s (owns shared RETURN) | ✅ Done |
+| FUN_01a2_3d3b + 422d + 4246 | LAtkLock | Type-1 attack: "LAN LOCKED", flicker+shrink anim, icon marker | ✅ Done |
+| FUN_01a2_42d5 | LAtkPJam | Type-4 PRINTER JAM: icon draw, 5-frame paper feed, alarm cascade, chaos | ✅ Done |
+| FUN_01a2_5018 + 50b2 + 5124 | LAtkErase | Type-2 ERASED: flicker anim, SOUND 100,12, red X (7 LINEs + 3 PAINTs) | ✅ Done |
+| FUN_01a2_56c4 | LAtkFmt | Type-3 FORMAT C: attack: 3 circles, shrink loop, flash loop, scan sweep | ✅ Done |
+| FUN_01a2_61cb | LCircXhair | Circle animator: 3 concentric rings + crosshair (called from LAtkFmt) | ✅ Done |
+| FUN_01a2_637d | LAlAnim | Al figure draw + 5-iteration blink animation (5,619 ASM lines) | ✅ Done |
+| FUN_01a2_902f | LSelfPJam | Self-attack error: PRINTER JAM -- descending beep cascade + 25 s lockout | ✅ Done |
+| FUN_01a2_90ad | LSelfLock | Self-attack error: LAN LOCKED -- SOUND 2000,3 + 25 s lockout | ✅ Done |
+| FUN_01a2_90f7 | LSelfErase | Self-attack error: ERASED -- SOUND 2000,3 + extend/start 45 s lockout | ✅ Done |
+| FUN_01a2_9170 | LVictory | Victory screen: VICTORY!! flash, fanfare, crash graphic, GOSUB Lbca2 | ✅ Done |
+| FUN_01a2_9ae7 | LTargetXhair | Bullseye draw: 3 ring pairs + crosshair at screen center | ✅ Done |
+| FUN_01a2_9c28 | LLossScreen | FORMAT C: self-attack animation + GAME OVER path | ✅ Done |
+| FUN_01a2_a58f | LGameEnd | Game-end branch: score >= 1000 -> LVictory else LGameOver | ✅ Done |
+| FUN_01a2_a5e0 | LGameOver | GAME OVER 4-color flash -> LTooFewPoints or LFinalTally | ✅ Done |
+| FUN_01a2_a7db | LTooFewPoints | NOT ENOUGH POINTS flash (first game only) | ✅ Done |
+| FUN_01a2_a7f1 | LNotEnoughPts | NOT ENOUGH POINTS flash (subsequent games) | ✅ Done |
+| FUN_01a2_a980 | LYouLose | YOU LOSE WEENIE flash x4 | ✅ Done |
+| FUN_01a2_aba9 | LFinalTally | Score bonus/penalty, history update, GOSUB Lb207/LSavePlayers/Lbca2 | ✅ Done |
+| FUN_01a2_ae3d | LLoadPlayers | Read "players" save file into playTbl! array | ✅ Done |
+| FUN_01a2_b029 | LSavePlayers | Write playTbl! array to "players" save file | ✅ Done |
+| FUN_01a2_b207 | Lb207 | Display player score table with champion tracking | ✅ Done |
+| FUN_01a2_b786 | Lb786 | Player login: select existing slot or register new player | ✅ Done |
+| FUN_01a2_bab9 | LRepairUI | Player lockout wait loop with live Al repair animation | ✅ Done |
+| FUN_01a2_bca2 | Lbca2 | End-of-game: "Hit any key" prompt, ESC exits | ✅ Done |
 
 ---
 
@@ -201,40 +211,32 @@ Arguments are pushed with `MOV AX, value / PUSH AX` pairs, then `CALLF` the runt
 
 ### Variable Naming Convention
 
-Variables are named by their DS (data segment) offset:
+**Decompiled BASIC uses semantic names** (established in session 12, 2026-05-28).
+Original DS/CS address names are preserved in inline comments for cross-reference.
+
+Naming scheme used during decompilation (before renaming pass):
 - `Fa_xxxx!` — single-precision float at DS:0x_xxxx  (e.g., `Fa22e!` = float @ DS:0xa22e)
 - `Sa_xxxx$` — string at DS:0x_xxxx  (e.g., `Sa242$` = string @ DS:0xa242)
-- `Ia_xxxx%` — integer at DS:0x_xxxx  (rarely used directly; often converted from float)
 
-Known named variables:
-| Name | DS offset | Meaning |
-|------|-----------|---------|
-| `Fa246!(i,j)` | a246 | 10×5 computer status array |
-| `Fa22e!` | a22e | Current computer X position (for drawing) |
-| `Fa232!` | a232 | Current computer Y position (for drawing) |
-| `Fa236!` | a236 | Color parameter |
-| `Sa242$` | a242 | Key input buffer (INKEY$) |
-| `Sa46e$` | a46e | Command input string |
-| `Fa46a!` | a46a | Loop counter / FOR variable |
-| `Fa466!` | a466 | Loop counter |
-| `Fa472!` | a472 | Selected target (0=none, 1-9=computer, 10=Hobbs) |
-| `Fa44a!` | a44a | Game end time (TIMER + 300) |
-| `Fa44e!` | a44e | |
-| `Fa452!` | a452 | |
-| `Fa456!` | a456 | Player score |
-| `Fa43a!` | a43a | Al's printers unjammed count |
-| `Fa43e!` | a43e | Al's computers unlocked count |
-| `Fa442!` | a442 | Al's erasures restored count |
-| `Fa446!` | a446 | Al's hard disks reconstructed count |
-| `Sa436$` | a436 | Player name |
-| `Sa432$` | a432 | Computer name string (temp) |
-| `Sa42a$` | a42a | All computer names string |
-| `F003a!` | 003a | Timer calibration loop counter |
-| `F0042!` | 0042 | Timer scale factor |
-| `F0046!` | 0046 | Timer factor × 10000 |
-| `F004a!` | 004a | Timer factor × 2500 |
-| `Fa4a2!` | a4a2 | Delay start time |
-| `Fa49e!` | a49e | Delay start time (for L3c57) |
+**Semantic names in the decompiled BASIC** (see full glossary in lanlokre.bas lines ~9-143):
+
+| Semantic name | Original | DS offset | Meaning |
+|---------------|----------|-----------|---------|
+| `compStat!(i,j)` | `Fa246!` | a246 | 10×5 computer status array |
+| `drawX!` | `Fa22e!` | a22e | Icon base X pixel coordinate |
+| `drawY!` | `Fa232!` | a232 | Icon base Y pixel coordinate |
+| `keyIn$` | `Sa242$` | a242 | INKEY$ keyboard input buffer |
+| `cmdBuf$` | `Sa46e$` | a46e | Command input accumulator |
+| `alTarget!` | `Fa46a!` | a46a | Al's current repair-target index |
+| `target!` | `Fa472!` | a472 | Player selected target (0=SKUA, 1-10) |
+| `gameEnd!` | `Fa44a!` | a44a | Game end timestamp (TIMER + 300 s) |
+| `Fa44e!` | `Fa44e!` | a44e | Victory flag (1 = player won) |
+| `Fa452!` | `Fa452!` | a452 | Penalty flag (1 = FORMAT C: self or score<60) |
+| `score!` | `Fa456!` | a456 | Player cumulative score |
+| `playTbl!(i,j)` | (6 arrays) | 9c92 | Player history table: 51 rows x 7 cols (col 1-6 used) |
+| `playerName$` | `Sa436$` | a436 | Player machine name ("SKUA") |
+| `compName$` | `Sa432$` | a432 | Computer name temp |
+| `compNames$` | `Sa42a$` | a42a | All computer names packed string |
 
 ### Float Variable Patterns
 
@@ -305,11 +307,12 @@ Column offsets from 0x002c base:
 ```
 Output: count of remaining raw ASM lines. Target: 0.
 
-### Level 2 — Syntax Check (requires QB64 installed)
+### Level 2 — Syntax Check (requires QB64-PE installed)
 ```powershell
-& "C:\QB64\qb64pe.exe" -c lanlokre.bas -o lanlokre_test.exe 2>&1
+& "C:\Program Files\qb64pe\qb64pe.exe" -z -x lanlokre.bas      # syntax check only
+& "C:\Program Files\qb64pe\qb64pe.exe" -x lanlokre.bas -o lanlokre.exe   # full compile
 ```
-A successful compile proves the file is valid BASIC. Errors identify problem spots.
+A successful compile proves the file is valid BASIC. **Currently: exits 0, lanlokre.exe produced.**
 QB64-PE download: https://github.com/QB64-Phoenix-Edition/QB64pe/releases
 
 ### Level 3 — Behavioral Comparison (requires DOSBox)
